@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -10,11 +11,14 @@ import { StudentQueries } from './dto';
 import { Student } from './student.schema';
 import { CreateStudentDto } from './dto/student.create.dto';
 import { UpdateStudentDto } from './dto/student.update.dto';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
 
 @Injectable()
 export class StudentService {
   constructor(
     @InjectModel(Student.name) private studentModel: Model<Student>,
+    @Inject(CACHE_MANAGER) private redisCache: Cache,
   ) {}
 
   async find(
