@@ -2,7 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { IsEmail, IsOptional, IsString } from 'class-validator';
 import { Gender } from '../student.schema';
 
-export class StudentParams {
+export class StudentQueries {
   @IsString()
   @IsOptional()
   @ApiProperty({
@@ -17,7 +17,7 @@ export class StudentParams {
     required: false,
     type: String,
   })
-  firstName?: string;
+  firstName?: string | {};
 
   @IsString()
   @IsOptional()
@@ -25,7 +25,7 @@ export class StudentParams {
     required: false,
     type: String,
   })
-  lastName?: string;
+  lastName?: string | {};
 
   @IsString()
   @IsOptional()
