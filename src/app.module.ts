@@ -7,6 +7,7 @@ import { SubjectModule } from './modules/subject/subject.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CacheModule } from '@nestjs/cache-manager';
 import { createKeyv, Keyv } from '@keyv/redis';
+import { RedisModule } from './shared/redis/redis.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { createKeyv, Keyv } from '@keyv/redis';
       inject: [ConfigService],
       isGlobal: true,
     }),
+    RedisModule,
   ],
   controllers: [],
   providers: [AppService],
