@@ -2,7 +2,7 @@ import { Controller, Get, Query } from '@nestjs/common';
 import { SubjectService } from './subject.service';
 import { SubjectQueries } from './dto/subject.params.dto';
 
-@Controller('subject')
+@Controller('subjects')
 export class SubjectController {
   constructor(private readonly subjectService: SubjectService) {}
 

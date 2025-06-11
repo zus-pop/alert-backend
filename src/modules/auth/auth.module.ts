@@ -5,7 +5,11 @@ import { Student, StudentSchema } from '../student/student.schema';
 import { StudentService } from '../student/student.service';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
-import { GoogleStrategy, JwtStrategy } from './strategy';
+import { GoogleStrategy, JwtStrategy, LocalStrategy } from './strategy';
+import {
+  SystemUser,
+  SystemUserSchema,
+} from '../system-user/system-user.schema';
 
 @Module({
   imports: [
@@ -14,10 +18,20 @@ import { GoogleStrategy, JwtStrategy } from './strategy';
         name: Student.name,
         schema: StudentSchema,
       },
+      {
+        name: SystemUser.name,
+        schema: SystemUserSchema,
+      },
     ]),
     JwtModule.register({}),
   ],
-  providers: [AuthService, StudentService, JwtStrategy, GoogleStrategy],
+  providers: [
+    AuthService,
+    StudentService,
+    JwtStrategy,
+    GoogleStrategy,
+    LocalStrategy,
+  ],
   controllers: [AuthController],
 })
 export class AuthModule {}

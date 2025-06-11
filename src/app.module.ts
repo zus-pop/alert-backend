@@ -8,6 +8,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { CacheModule } from '@nestjs/cache-manager';
 import { createKeyv, Keyv } from '@keyv/redis';
 import { RedisModule } from './shared/redis/redis.module';
+import { SystemUserModule } from './modules/system-user/system-user.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { RedisModule } from './shared/redis/redis.module';
       isGlobal: true,
     }),
     RedisModule,
+    SystemUserModule,
   ],
   controllers: [],
   providers: [AppService],

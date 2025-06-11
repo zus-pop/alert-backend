@@ -1,10 +1,6 @@
-import {
-    Body,
-    Controller,
-    Get,
-    Post,
-    UseGuards
-} from '@nestjs/common';
+import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { StudentDocument } from '../student/student.schema';
+import { SystemUserDocument } from '../system-user/system-user.schema';
 import { AuthService } from './auth.service';
 import { WhoAmI } from './decorators';
 import { AuthLoginDto } from './dto';
@@ -14,14 +10,14 @@ import { GoogleAuthGuard, JwtAuthGuard } from './guards';
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  @Post()
+  @Post('login')
   async login(@Body() user: AuthLoginDto) {
-    return this.authService.signToken(user as any);
+    return this.authService.loginLocal(user);
   }
 
-  @Get()
+  @Get('me')
   @UseGuards(JwtAuthGuard)
-  async test(@WhoAmI() me: any) {
+  async whoAmI(@WhoAmI() me: StudentDocument | SystemUserDocument) {
     return me;
   }
 
@@ -31,7 +27,7 @@ export class AuthController {
 
   @Get('google-redirect')
   @UseGuards(GoogleAuthGuard)
-  googleAuthRedirect(@WhoAmI() me) {
-    return me;
+  googleAuthRedirect(@WhoAmI() me: StudentDocument) {
+    return this.authService.loginGoogle(me);
   }
 }

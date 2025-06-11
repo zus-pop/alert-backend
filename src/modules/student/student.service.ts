@@ -11,7 +11,7 @@ import { RedisService } from '../../shared/redis/redis.service';
 import { StudentQueries } from './dto';
 import { CreateStudentDto } from './dto/student.create.dto';
 import { UpdateStudentDto } from './dto/student.update.dto';
-import { Student } from './student.schema';
+import { Student, StudentDocument } from './student.schema';
 
 @Injectable()
 export class StudentService {
@@ -33,7 +33,8 @@ export class StudentService {
       ...sortCriteria,
       ...pagination,
     });
-    const cacheData = await this.redisService.getCachedData<Student>(key);
+    const cacheData =
+      await this.redisService.getCachedData<StudentDocument>(key);
     if (cacheData) return cacheData;
 
     const sortField = sortCriteria.sortBy ?? 'firstName';
