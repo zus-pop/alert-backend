@@ -1,24 +1,25 @@
 import {
   BadRequestException,
-  Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { isValidObjectId, Model } from 'mongoose';
 import { Pagination, SortCriteria } from '../../shared/dto';
+import { RedisService } from '../../shared/redis/redis.service';
 import { StudentQueries } from './dto';
-import { Student } from './student.schema';
 import { CreateStudentDto } from './dto/student.create.dto';
 import { UpdateStudentDto } from './dto/student.update.dto';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { Cache } from 'cache-manager';
+import { Student, StudentDocument } from './student.schema';
 
 @Injectable()
 export class StudentService {
+  private readonly logger = new Logger(StudentService.name);
+
   constructor(
     @InjectModel(Student.name) private studentModel: Model<Student>,
-    @Inject(CACHE_MANAGER) private redisCache: Cache,
+    private readonly redisService: RedisService,
   ) {}
 
   async find(
@@ -26,6 +27,16 @@ export class StudentService {
     sortCriteria: SortCriteria,
     pagination: Pagination,
   ) {
+    // Find cached data first
+    const key = this.redisService.hashKey('students', {
+      ...queries,
+      ...sortCriteria,
+      ...pagination,
+    });
+    const cacheData =
+      await this.redisService.getCachedData<StudentDocument>(key);
+    if (cacheData) return cacheData;
+
     const sortField = sortCriteria.sortBy ?? 'firstName';
     const sortOrder = sortCriteria.order === 'desc' ? -1 : 1;
 
@@ -56,11 +67,20 @@ export class StudentService {
       this.studentModel.countDocuments(queries),
     ]);
 
-    return {
+    const response = {
       data: students,
       totalItems: total,
-      totalPages: Math.ceil(total / limit),
+      totalPage: Math.ceil(total / limit),
     };
+
+    if (students.length)
+      this.redisService.cacheData({
+        key: key,
+        data: response,
+        ttl: 30,
+      });
+
+    return response;
   }
 
   async findById(id: string) {
@@ -68,6 +88,14 @@ export class StudentService {
       throw new BadRequestException('Id is not right format');
 
     const student = await this.studentModel.findById(id);
+
+    if (!student) throw new NotFoundException('Student not found!');
+
+    return student;
+  }
+
+  async findByEmail(email: string) {
+    const student = await this.studentModel.findOne({ email: email });
 
     if (!student) throw new NotFoundException('Student not found!');
 
