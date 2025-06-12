@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import {
+    Body,
+    Controller,
+    Get,
+    Post,
+    Query,
+    Res,
+    UseGuards,
+} from '@nestjs/common';
+import { Response } from 'express';
 import { StudentDocument } from '../student/student.schema';
 import { SystemUserDocument } from '../system-user/system-user.schema';
 import { AuthService } from './auth.service';
@@ -27,7 +36,15 @@ export class AuthController {
 
   @Get('google-redirect')
   @UseGuards(GoogleAuthGuard)
-  googleAuthRedirect(@WhoAmI() me: StudentDocument) {
-    return this.authService.loginGoogle(me);
+  async googleAuthRedirect(
+    @Query('state') state: string,
+    @WhoAmI() me: StudentDocument,
+    @Res() res: Response,
+  ) {
+    const json: string = Buffer.from(state, 'base64').toString('utf-8');
+
+    const { path }: { path: string } = JSON.parse(json);
+    const result = await this.authService.loginGoogle(me);
+    res.redirect(`${path}?access_token=${result.access_token}`);
   }
 }
