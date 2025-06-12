@@ -1,14 +1,11 @@
 import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
+    BadRequestException,
+    Injectable,
+    NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { InjectModel } from '@nestjs/mongoose';
 import { PassportStrategy } from '@nestjs/passport';
 import { Profile, Strategy, VerifyCallback } from 'passport-google-oauth20';
-import { Student } from '../../student/student.schema';
-import { Model } from 'mongoose';
 import { StudentService } from '../../student/student.service';
 
 @Injectable()
@@ -24,6 +21,7 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
       scope: ['email', 'profile'],
     });
   }
+
   async validate(
     _accessToken: string,
     _refreshToken: string,
@@ -43,7 +41,10 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
         undefined,
       );
     }
-    const student = this.studentService.findByEmail(email);
+    const student = await this.studentService.findByEmail(email);
+    student.firstName = profile._json.given_name as string;
+    student.lastName = profile._json.family_name as string;
+    await student.save();
     return done(null, student);
   }
 }
