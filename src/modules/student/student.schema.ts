@@ -32,6 +32,8 @@ export class Student {
     enum: Gender,
   })
   gender: string;
+  @Prop()
+  password: string;
 }
 
 export const StudentSchema = SchemaFactory.createForClass(Student);
