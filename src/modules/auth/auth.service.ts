@@ -86,7 +86,7 @@ export class AuthService {
     user: PayloadDto,
     option: 'accessToken' | 'refreshToken' | 'both' = 'both',
   ) {
-    const accessExpiresIn = '30s';
+    const accessExpiresIn = '1h';
     const refreshExpiresIn = '7d';
     const payload: PayloadDto = {
       sub: user.sub,
