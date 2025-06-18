@@ -1,20 +1,20 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsOptional, IsString } from 'class-validator';
 
-export class SubjectQueries {
+export class EnrollmentQueries {
   @IsString()
   @IsOptional()
   @ApiProperty({
     required: false,
     type: String,
   })
-  subjectCode?: string;
-  
+  studentId?: string;
+
   @IsString()
   @IsOptional()
   @ApiProperty({
     required: false,
     type: String,
   })
-  subjectName?: string;
+  courseId?: string;
 }

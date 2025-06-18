@@ -1,15 +1,20 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { MongooseModule } from '@nestjs/mongoose';
-import { Student, StudentSchema } from '../student/student.schema';
-import { StudentService } from '../student/student.service';
+import { Student, StudentSchema } from '../../shared/schemas/student.schema';
+import {
+    SystemUser,
+    SystemUserSchema,
+} from '../../shared/schemas/system-user.schema';
+import { StudentModule } from '../student/student.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
-import { GoogleStrategy, JwtStrategy, LocalStrategy } from './strategy';
 import {
-  SystemUser,
-  SystemUserSchema,
-} from '../system-user/system-user.schema';
+    AccessTokenStrategy,
+    GoogleStrategy,
+    LocalStrategy,
+    RefreshTokenStrategy,
+} from './strategy';
 
 @Module({
   imports: [
@@ -24,11 +29,12 @@ import {
       },
     ]),
     JwtModule.register({}),
+    StudentModule,
   ],
   providers: [
     AuthService,
-    StudentService,
-    JwtStrategy,
+    AccessTokenStrategy,
+    RefreshTokenStrategy,
     GoogleStrategy,
     LocalStrategy,
   ],

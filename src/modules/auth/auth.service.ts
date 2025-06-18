@@ -2,20 +2,17 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
-  UseGuards,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { Student, StudentDocument } from '../student/student.schema';
-import { WhoAmI } from './decorators';
-import { AuthLoginDto, PayloadDto } from './dto';
-import { LocalAuthGuard } from './guards';
 import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { Student, StudentDocument } from '../../shared/schemas';
 import {
   SystemUser,
   SystemUserDocument,
-} from '../system-user/system-user.schema';
-import { Model } from 'mongoose';
+} from '../../shared/schemas/system-user.schema';
+import { AuthLoginDto, PayloadDto } from './dto';
 
 @Injectable()
 export class AuthService {
@@ -55,7 +52,7 @@ export class AuthService {
       'System',
     );
     return this.signToken({
-      _id: user._id.toString(),
+      sub: user._id.toString(),
       email: user.email,
       type: 'System',
     });
@@ -63,13 +60,13 @@ export class AuthService {
 
   async loginGoogle(user: StudentDocument) {
     return this.signToken({
-      _id: user._id.toString(),
+      sub: user._id.toString(),
       email: user.email,
       type: 'Student',
     });
   }
 
-  async signToken(user: {
+  async refreshToken(user: {
     _id: string;
     email: string;
     type: 'System' | 'Student';
@@ -80,13 +77,53 @@ export class AuthService {
       type: user.type,
     };
 
-    const access_token = await this.jwtService.signAsync(payload, {
-      expiresIn: '1h',
-      secret: this.configService.get<string>('JWT_SECRET'),
-    });
+    const accessToken = await this.signToken(payload, 'accessToken');
+
+    return accessToken;
+  }
+
+  async signToken(
+    user: PayloadDto,
+    option: 'accessToken' | 'refreshToken' | 'both' = 'both',
+  ) {
+    const accessExpiresIn = '30s';
+    const refreshExpiresIn = '7d';
+    const payload: PayloadDto = {
+      sub: user.sub,
+      email: user.email,
+      type: user.type,
+    };
+
+    if (option === 'accessToken') {
+      const accessToken = await this.jwtService.signAsync(payload, {
+        secret: this.configService.get<string>('JWT_ACCESS_SECRET'),
+        expiresIn: accessExpiresIn,
+      });
+      return { accessToken };
+    }
+
+    if (option === 'refreshToken') {
+      const refreshToken = await this.jwtService.signAsync(payload, {
+        secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
+        expiresIn: refreshExpiresIn,
+      });
+      return { refreshToken };
+    }
+
+    const [accessToken, refreshToken] = await Promise.all([
+      this.jwtService.signAsync(payload, {
+        secret: this.configService.get<string>('JWT_ACCESS_SECRET'),
+        expiresIn: accessExpiresIn,
+      }),
+      this.jwtService.signAsync(payload, {
+        secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
+        expiresIn: refreshExpiresIn,
+      }),
+    ]);
 
     return {
-      access_token: access_token,
+      accessToken,
+      refreshToken,
     };
   }
 }

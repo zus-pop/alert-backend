@@ -18,6 +18,7 @@ async function bootstrap() {
   const config = new DocumentBuilder()
     .setTitle('AI Alert Document')
     .setDescription('API documentation')
+    .addBearerAuth()
     .setVersion('1.0')
     .build();
 

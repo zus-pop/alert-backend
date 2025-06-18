@@ -12,16 +12,22 @@ import {
   Query,
 } from '@nestjs/common';
 import { StudentService } from './student.service';
-import { StudentQueries } from './dto/student.params.dto';
+import { StudentQueries } from './dto/student.queries.dto';
 import { SortCriteria } from '../../shared/dto/sort.dto';
 import { ApiQuery, ApiTags } from '@nestjs/swagger';
 import { Pagination } from '../../shared/dto/pagination.dto';
 import { CreateStudentDto, UpdateStudentDto } from './dto';
+import { EnrollmentQueries } from '../enrollment/dto';
+import { Types } from 'mongoose';
 
 @ApiTags('Students')
 @Controller('students')
 export class StudentController {
   constructor(private readonly studentService: StudentService) {}
+
+  @Post()
+  @HttpCode(HttpStatus.CREATED)
+  async create(@Body() createStudentDto: CreateStudentDto) {}
 
   @Get()
   @ApiQuery({
@@ -37,14 +43,47 @@ export class StudentController {
     return this.studentService.find(queries, sortCriteria, pagination);
   }
 
+  @Get(':studentId/enrollments')
+  async findEnrollmentsByStudentId(
+    @Param('studentId') studentId: string,
+    @Query() queries: EnrollmentQueries,
+    @Query() sortCriteria: SortCriteria,
+    @Query() pagination: Pagination,
+  ) {
+    return this.studentService.findEnrollmentsByStudentId(
+      studentId,
+      queries,
+      sortCriteria,
+      pagination,
+    );
+  }
+
+  @Get(':studentId/enrollments/:enrollmentId')
+  async findEnrollmentByStudentId(
+    @Param('studentId') studentId: string,
+    @Param('enrollmentId') enrollmentId: string,
+  ) {
+    return this.studentService.findEnrollmentByEnrollmentIdAndStudentId(
+      new Types.ObjectId(studentId),
+      new Types.ObjectId(enrollmentId),
+    );
+  }
+
+  @Get(':studentId/enrollments/:enrollmentId/attendances')
+  async findAttendancesByEnrollmentIdAndStudentId(
+    @Param('studentId') studentId: string,
+    @Param('enrollmentId') enrollmentId: string,
+  ) {
+    return this.studentService.findEnrollmentByEnrollmentIdAndStudentId(
+      new Types.ObjectId(studentId),
+      new Types.ObjectId(enrollmentId),
+    );
+  }
+
   @Get(':id')
   async findById(@Param('id') id: string) {
     return this.studentService.findById(id);
   }
-
-  @Post()
-  @HttpCode(HttpStatus.CREATED)
-  async create(@Body() createStudentDto: CreateStudentDto) {}
 
   @Patch(':id')
   async update(
