@@ -5,13 +5,15 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { isValidObjectId, Model } from 'mongoose';
+import { isValidObjectId, Model, Types } from 'mongoose';
 import { Pagination, SortCriteria } from '../../shared/dto';
 import { RedisService } from '../../shared/redis/redis.service';
+import { Student, StudentDocument } from '../../shared/schemas';
 import { StudentQueries } from './dto';
 import { CreateStudentDto } from './dto/student.create.dto';
 import { UpdateStudentDto } from './dto/student.update.dto';
-import { Student, StudentDocument } from './student.schema';
+import { EnrollmentService } from '../enrollment/enrollment.service';
+import { EnrollmentQueries } from '../enrollment/dto';
 
 @Injectable()
 export class StudentService {
@@ -20,6 +22,7 @@ export class StudentService {
   constructor(
     @InjectModel(Student.name) private studentModel: Model<Student>,
     private readonly redisService: RedisService,
+    private readonly enrollmentService: EnrollmentService,
   ) {}
 
   async find(
@@ -92,6 +95,38 @@ export class StudentService {
     if (!student) throw new NotFoundException('Student not found!');
 
     return student;
+  }
+
+  async findEnrollmentsByStudentId(
+    id: string,
+    queries: EnrollmentQueries,
+    sortCriteria: SortCriteria,
+    pagination: Pagination,
+  ) {
+    await this.findById(id);
+
+    return await this.enrollmentService.findByStudentId(
+      new Types.ObjectId(id),
+      queries,
+      sortCriteria,
+      pagination,
+    );
+  }
+
+  async findEnrollmentByEnrollmentIdAndStudentId(
+    studentId: Types.ObjectId,
+    enrollmentId: Types.ObjectId,
+  ) {
+    const enrollment = await this.enrollmentService.findOne(
+      enrollmentId.toString(),
+    );
+
+    if (!enrollment?.studentId._id.equals(studentId))
+      throw new BadRequestException(
+        'This enrollment does not belong to this student',
+      );
+
+    return enrollment;
   }
 
   async findByEmail(email: string) {

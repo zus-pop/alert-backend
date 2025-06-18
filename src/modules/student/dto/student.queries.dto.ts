@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEmail, IsOptional, IsString } from 'class-validator';
-import { Gender } from '../student.schema';
+import { Gender } from '../../../shared/schemas/student.schema';
 
 export class StudentQueries {
   @IsString()

@@ -1,33 +1,53 @@
 import {
-    Body,
-    Controller,
-    Get,
-    Post,
-    Query,
-    Res,
-    UseGuards,
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Post,
+  Query,
+  Res,
+  UseGuards,
 } from '@nestjs/common';
 import { Response } from 'express';
-import { StudentDocument } from '../student/student.schema';
-import { SystemUserDocument } from '../system-user/system-user.schema';
+import { StudentDocument } from '../../shared/schemas/student.schema';
+import { SystemUserDocument } from '../../shared/schemas/system-user.schema';
 import { AuthService } from './auth.service';
 import { WhoAmI } from './decorators';
-import { AuthLoginDto } from './dto';
-import { GoogleAuthGuard, JwtAuthGuard } from './guards';
+import { AuthLoginDto, PayloadDto } from './dto';
+import {
+  AccessTokenAuthGuard,
+  GoogleAuthGuard,
+  RefreshTokenAuthGuard,
+} from './guards';
+import { ApiBearerAuth } from '@nestjs/swagger';
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('login')
+  @HttpCode(HttpStatus.OK)
   async login(@Body() user: AuthLoginDto) {
     return this.authService.loginLocal(user);
   }
 
   @Get('me')
-  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @UseGuards(AccessTokenAuthGuard)
   async whoAmI(@WhoAmI() me: StudentDocument | SystemUserDocument) {
     return me;
+  }
+
+  @Get('refresh')
+  @ApiBearerAuth()
+  @UseGuards(RefreshTokenAuthGuard)
+  async refresh(@WhoAmI() me: PayloadDto) {
+    return this.authService.refreshToken({
+      _id: me.sub,
+      email: me.email,
+      type: me.type,
+    });
   }
 
   @Get('google')
@@ -45,6 +65,8 @@ export class AuthController {
 
     const { path }: { path: string } = JSON.parse(json);
     const result = await this.authService.loginGoogle(me);
-    res.redirect(`${path}?access_token=${result.access_token}`);
+    res.redirect(
+      `${path}?access_token=${result.accessToken}&refreshToken=${result.refreshToken}`,
+    );
   }
 }

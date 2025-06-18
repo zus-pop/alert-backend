@@ -18,6 +18,11 @@ export class RedisService {
     return cachedData;
   }
 
+  async invalidate(key?: string) {
+    if (key) this.redisCache.del(key);
+    else this.redisCache.clear();
+  }
+
   async cacheData<T>({
     key,
     data,
