@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Role } from '../../../shared/schemas';
 import { IsOptional, IsString } from 'class-validator';
+import { Role } from '../../../shared/schemas';
 
 export class SystemUserQueries {
   @IsString()
@@ -31,7 +31,7 @@ export class SystemUserQueries {
   @IsOptional()
   @ApiProperty({
     required: false,
-    enum: ['ADMIN', 'MANAGER', 'STAFF'],
+    enum: ['ADMIN', 'MANAGER', 'SUPERVISOR'],
   })
   role?: Role;
 }

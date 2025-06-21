@@ -1,6 +1,5 @@
-import { IsEmail, IsIn, IsNotEmpty, IsString } from 'class-validator';
-import { Role } from '../../../shared/schemas';
 import { ApiProperty } from '@nestjs/swagger';
+import { IsEmail, IsIn, IsNotEmpty, IsString } from 'class-validator';
 
 export class CreateSystemUserDto {
   @IsNotEmpty()
@@ -17,11 +16,15 @@ export class CreateSystemUserDto {
   @IsNotEmpty()
   @ApiProperty()
   lastName: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @ApiProperty()
   password: string;
 
   @IsString()
-  @IsIn(['ADMIN', 'MANAGER', 'STAFF'])
+  @IsIn(['ADMIN', 'MANAGER', 'SUPERVISOR'])
   @IsNotEmpty()
   @ApiProperty()
-  role: 'ADMIN' | 'MANAGER' | 'STAFF';
+  role: 'ADMIN' | 'MANAGER' | 'SUPERVISOR';
 }
