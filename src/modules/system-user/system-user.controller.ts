@@ -33,7 +33,7 @@ export class SystemUserController {
 
   @Get(':id')
   findOne(@Param('id') id: string) {
-    return this.systemUserService.findOne(id);
+    return this.systemUserService.findById(id);
   }
 
   @Patch(':id')

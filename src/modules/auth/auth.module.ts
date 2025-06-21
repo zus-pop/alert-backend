@@ -1,12 +1,7 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
-import { MongooseModule } from '@nestjs/mongoose';
-import { Student, StudentSchema } from '../../shared/schemas/student.schema';
-import {
-    SystemUser,
-    SystemUserSchema,
-} from '../../shared/schemas/system-user.schema';
 import { StudentModule } from '../student/student.module';
+import { SystemUserModule } from '../system-user/system-user.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import {
@@ -17,20 +12,7 @@ import {
 } from './strategy';
 
 @Module({
-  imports: [
-    MongooseModule.forFeature([
-      {
-        name: Student.name,
-        schema: StudentSchema,
-      },
-      {
-        name: SystemUser.name,
-        schema: SystemUserSchema,
-      },
-    ]),
-    JwtModule.register({}),
-    StudentModule,
-  ],
+  imports: [JwtModule.register({}), StudentModule, SystemUserModule],
   providers: [
     AuthService,
     AccessTokenStrategy,

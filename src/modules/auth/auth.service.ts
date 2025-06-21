@@ -1,26 +1,24 @@
 import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
+    BadRequestException,
+    Injectable,
+    Logger,
+    NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { Student, StudentDocument } from '../../shared/schemas';
-import {
-  SystemUser,
-  SystemUserDocument,
-} from '../../shared/schemas/system-user.schema';
+import { StudentDocument, SystemUserDocument } from '../../shared/schemas';
+import { StudentService } from '../student/student.service';
+import { SystemUserService } from '../system-user/system-user.service';
 import { AuthLoginDto, PayloadDto } from './dto';
 
 @Injectable()
 export class AuthService {
+  private readonly logger: Logger = new Logger(AuthService.name);
   constructor(
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
-    @InjectModel(SystemUser.name) private systemUserModel: Model<SystemUser>,
-    @InjectModel(Student.name) private studentModel: Model<Student>,
+    private readonly studentService: StudentService,
+    private readonly systemUserService: SystemUserService,
   ) {}
 
   async validateUser(
@@ -30,13 +28,9 @@ export class AuthService {
   ) {
     let user: StudentDocument | SystemUserDocument | null;
     if (type === 'System') {
-      user = await this.systemUserModel.findOne({
-        email: email,
-      });
+      user = await this.systemUserService.findByEmail(email);
     } else {
-      user = await this.studentModel.findOne({
-        email: email,
-      });
+      user = await this.studentService.findByEmail(email);
     }
     if (!user) throw new NotFoundException('Email not found');
 
@@ -80,6 +74,15 @@ export class AuthService {
     const accessToken = await this.signToken(payload, 'accessToken');
 
     return accessToken;
+  }
+
+  async updateDeviceToken(id: string, token: string) {
+    const student = await this.studentService.findById(id);
+    if (!student.deviceTokens.includes(token)) {
+      student.deviceTokens.push(token);
+      this.logger.log('Updated device token');
+    }
+    return student.save();
   }
 
   async signToken(

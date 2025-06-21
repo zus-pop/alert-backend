@@ -2,11 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
+import { StudentService } from '../../student/student.service';
+import { SystemUserService } from '../../system-user/system-user.service';
 import { PayloadDto } from '../dto';
-import { InjectModel } from '@nestjs/mongoose';
-import { SystemUser } from '../../../shared/schemas/system-user.schema';
-import { Model } from 'mongoose';
-import { Student } from '../../../shared/schemas/student.schema';
 
 @Injectable()
 export class AccessTokenStrategy extends PassportStrategy(
@@ -15,8 +13,8 @@ export class AccessTokenStrategy extends PassportStrategy(
 ) {
   constructor(
     configService: ConfigService,
-    @InjectModel(SystemUser.name) private systemUserModel: Model<SystemUser>,
-    @InjectModel(Student.name) private studentModel: Model<Student>,
+    private readonly studentService: StudentService,
+    private readonly systemUserService: SystemUserService,
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
@@ -27,10 +25,7 @@ export class AccessTokenStrategy extends PassportStrategy(
 
   async validate(payload: PayloadDto) {
     if (payload.type === 'System')
-      return this.systemUserModel
-        .findById(payload.sub)
-        .select('-password -__v');
-    else
-      return this.studentModel.findById(payload.sub).select('-password -__v');
+      return this.systemUserService.findById(payload.sub);
+    else return this.studentService.findById(payload.sub);
   }
 }
