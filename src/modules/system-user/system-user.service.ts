@@ -83,7 +83,7 @@ export class SystemUserService {
     return response;
   }
 
-  async findOne(id: string) {
+  async findById(id: string) {
     if (!isValidObjectId(id))
       throw new BadRequestException('Id is not right format');
 
@@ -94,7 +94,9 @@ export class SystemUserService {
 
     if (cachedData) return cachedData;
 
-    const systemUser = await this.systemUserModel.findById(id);
+    const systemUser = await this.systemUserModel
+      .findById(id)
+      .select('-password -__v');
 
     if (!systemUser) throw new NotFoundException('System user not found');
 
@@ -107,8 +109,16 @@ export class SystemUserService {
     return systemUser;
   }
 
+  async findByEmail(email: string) {
+    const student = await this.systemUserModel.findOne({ email: email });
+
+    if (!student) throw new NotFoundException('System not found!');
+
+    return student;
+  }
+
   async update(id: string, updateSystemUserDto: UpdateSystemUserDto) {
-    const systemUser = await this.findOne(id);
+    const systemUser = await this.findById(id);
 
     Object.assign(systemUser, updateSystemUserDto);
     this.redisService.invalidate(`system-user:${id}`);

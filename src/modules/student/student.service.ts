@@ -1,19 +1,17 @@
 import {
-  BadRequestException,
-  Injectable,
-  Logger,
-  NotFoundException,
+    BadRequestException,
+    Injectable,
+    Logger,
+    NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { isValidObjectId, Model, Types } from 'mongoose';
 import { Pagination, SortCriteria } from '../../shared/dto';
 import { RedisService } from '../../shared/redis/redis.service';
 import { Student, StudentDocument } from '../../shared/schemas';
-import { StudentQueries } from './dto';
-import { CreateStudentDto } from './dto/student.create.dto';
-import { UpdateStudentDto } from './dto/student.update.dto';
-import { EnrollmentService } from '../enrollment/enrollment.service';
 import { EnrollmentQueries } from '../enrollment/dto';
+import { EnrollmentService } from '../enrollment/enrollment.service';
+import { CreateStudentDto, StudentQueries, UpdateStudentDto } from './dto';
 
 @Injectable()
 export class StudentService {
@@ -90,7 +88,9 @@ export class StudentService {
     if (!isValidObjectId(id))
       throw new BadRequestException('Id is not right format');
 
-    const student = await this.studentModel.findById(id);
+    const student = await this.studentModel
+      .findById(id)
+      .select('-password -__v');
 
     if (!student) throw new NotFoundException('Student not found!');
 

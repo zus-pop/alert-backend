@@ -20,7 +20,8 @@ import {
   GoogleAuthGuard,
   RefreshTokenAuthGuard,
 } from './guards';
-import { ApiBearerAuth } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiHeader } from '@nestjs/swagger';
+import { PushToken } from './dto/push-notification.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -40,7 +41,11 @@ export class AuthController {
   }
 
   @Get('refresh')
-  @ApiBearerAuth()
+  @ApiHeader({
+    name: 'x-refresh-token',
+    required: true,
+    description: 'Refresh Token',
+  })
   @UseGuards(RefreshTokenAuthGuard)
   async refresh(@WhoAmI() me: PayloadDto) {
     return this.authService.refreshToken({
@@ -48,6 +53,17 @@ export class AuthController {
       email: me.email,
       type: me.type,
     });
+  }
+
+  @Post('deviceToken')
+  @ApiBearerAuth()
+  @UseGuards(AccessTokenAuthGuard)
+  async updateDeviceToken(
+    @WhoAmI() me: StudentDocument,
+    @Body() data: PushToken,
+  ) {
+    const { token } = data;
+    return this.authService.updateDeviceToken(me._id.toString(), token);
   }
 
   @Get('google')
@@ -66,7 +82,7 @@ export class AuthController {
     const { path }: { path: string } = JSON.parse(json);
     const result = await this.authService.loginGoogle(me);
     res.redirect(
-      `${path}?access_token=${result.accessToken}&refreshToken=${result.refreshToken}`,
+      `${path}?accessToken=${result.accessToken}&refreshToken=${result.refreshToken}`,
     );
   }
 }

@@ -29,7 +29,7 @@ export class Student {
     required: false,
   })
   image: string;
-  
+
   @Prop({
     required: true,
   })
@@ -38,8 +38,16 @@ export class Student {
     enum: Gender,
   })
   gender: string;
-  @Prop()
+
+  @Prop({
+    required: true,
+  })
   password: string;
+
+  @Prop({
+    required: false,
+  })
+  deviceTokens: [string];
 }
 
 export const StudentSchema = SchemaFactory.createForClass(Student);

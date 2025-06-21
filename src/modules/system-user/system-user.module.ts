@@ -16,5 +16,6 @@ import { SystemUser, SystemUserSchema } from '../../shared/schemas';
   ],
   controllers: [SystemUserController],
   providers: [SystemUserService],
+  exports: [SystemUserService],
 })
 export class SystemUserModule {}
