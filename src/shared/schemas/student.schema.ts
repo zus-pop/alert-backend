@@ -24,6 +24,12 @@ export class Student {
     required: true,
   })
   lastName: string;
+
+  @Prop({
+    required: false,
+  })
+  image: string;
+  
   @Prop({
     required: true,
   })

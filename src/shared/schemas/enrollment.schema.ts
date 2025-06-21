@@ -18,6 +18,12 @@ class Grade {
   weight: number;
 }
 
+export enum EnrollmentStatus {
+  IN_PROGRESS = 'IN PROGRESS',
+  NOT_PASSED = 'NOT PASSED',
+  PASSED = 'PASSED',
+}
+
 @Schema({
   collection: 'enrollment',
   timestamps: true,
@@ -46,6 +52,12 @@ export class Enrollment {
     required: true,
   })
   grade: [Grade];
+
+  @Prop({
+    required: true,
+    enum: EnrollmentStatus,
+  })
+  status: string;
 }
 
 export const EnrollmentSchema = SchemaFactory.createForClass(Enrollment);

@@ -1,7 +1,7 @@
 import {
-    BadRequestException,
-    Injectable,
-    NotFoundException,
+  BadRequestException,
+  Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
@@ -44,6 +44,7 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     const student = await this.studentService.findByEmail(email);
     student.firstName = profile._json.given_name as string;
     student.lastName = profile._json.family_name as string;
+    student.image = profile._json.picture as string;
     await student.save();
     return done(null, student);
   }
