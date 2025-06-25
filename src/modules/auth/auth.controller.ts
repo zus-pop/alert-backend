@@ -24,14 +24,13 @@ import { FirebaseService } from '../../shared/firebase/firebase.service';
 import { StudentDocument } from '../../shared/schemas/student.schema';
 import { AuthService } from './auth.service';
 import { WhoAmI } from './decorators';
-import { AuthLoginDto, PayloadDto } from './dto';
-import { MessageDto, PushTokenDto } from './dto/push-notification.dto';
+import { AuthLoginDto, MessageDto, PayloadDto, PushTokenDto } from './dto';
+import { ProfileDto } from './dto/profile.dto';
 import {
   AccessTokenAuthGuard,
   GoogleAuthGuard,
   RefreshTokenAuthGuard,
 } from './guards';
-import { ProfileDto } from './dto/profile.dto';
 
 @Controller('auth')
 export class AuthController {

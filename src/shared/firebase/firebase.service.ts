@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { getMessaging, MulticastMessage } from 'firebase-admin/messaging';
-import { getDownloadURL, getStorage } from 'firebase-admin/storage';
 import { App } from 'firebase-admin/app';
+import { getMessaging, MulticastMessage } from 'firebase-admin/messaging';
+import { getStorage } from 'firebase-admin/storage';
 
 @Injectable()
 export class FirebaseService {
