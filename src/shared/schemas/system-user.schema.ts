@@ -35,6 +35,11 @@ export class SystemUser {
     required: true,
   })
   role: string;
+
+  @Prop({
+    required: false,
+  })
+  image: string;
 }
 
 export const SystemUserSchema = SchemaFactory.createForClass(SystemUser);

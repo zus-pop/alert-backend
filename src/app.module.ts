@@ -4,6 +4,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AppService } from './app.service';
+import { AiModule } from './modules/ai/ai.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CourseModule } from './modules/course/course.module';
@@ -13,6 +14,7 @@ import { SessionModule } from './modules/session/session.module';
 import { StudentModule } from './modules/student/student.module';
 import { SubjectModule } from './modules/subject/subject.module';
 import { SystemUserModule } from './modules/system-user/system-user.module';
+import { FirebaseModule } from './shared/firebase/firebase.module';
 import { RedisModule } from './shared/redis/redis.module';
 
 @Module({
@@ -45,6 +47,8 @@ import { RedisModule } from './shared/redis/redis.module';
     AttendanceModule,
     SessionModule,
     EnrollmentModule,
+    AiModule,
+    FirebaseModule,
   ],
   controllers: [],
   providers: [AppService],

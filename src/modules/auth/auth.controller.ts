@@ -1,31 +1,43 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
   Post,
   Query,
   Res,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiHeader,
+} from '@nestjs/swagger';
 import { Response } from 'express';
+import { FirebaseService } from '../../shared/firebase/firebase.service';
 import { StudentDocument } from '../../shared/schemas/student.schema';
-import { SystemUserDocument } from '../../shared/schemas/system-user.schema';
 import { AuthService } from './auth.service';
 import { WhoAmI } from './decorators';
-import { AuthLoginDto, PayloadDto } from './dto';
+import { AuthLoginDto, MessageDto, PayloadDto, PushTokenDto } from './dto';
+import { ProfileDto } from './dto/profile.dto';
 import {
   AccessTokenAuthGuard,
   GoogleAuthGuard,
   RefreshTokenAuthGuard,
 } from './guards';
-import { ApiBearerAuth, ApiHeader } from '@nestjs/swagger';
-import { PushToken } from './dto/push-notification.dto';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly firebaseService: FirebaseService,
+  ) {}
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
@@ -36,8 +48,32 @@ export class AuthController {
   @Get('me')
   @ApiBearerAuth()
   @UseGuards(AccessTokenAuthGuard)
-  async whoAmI(@WhoAmI() me: StudentDocument | SystemUserDocument) {
-    return me;
+  async whoAmI(@WhoAmI() me: PayloadDto) {
+    return this.authService.whoAmI(me);
+  }
+
+  @Post('me')
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    type: ProfileDto,
+  })
+  @UseInterceptors(FileInterceptor('image'))
+  @ApiBearerAuth()
+  @UseGuards(AccessTokenAuthGuard)
+  async updateProfile(
+    @WhoAmI() me: PayloadDto,
+    @UploadedFile() image: Express.Multer.File,
+    @Body() data: ProfileDto,
+  ) {
+    if (image) {
+      const imageUrl = await this.firebaseService.uploadToCloud(
+        'avatar',
+        image,
+      );
+      data.image = imageUrl;
+    }
+    const result = await this.authService.updateProfile(me, data);
+    return result;
   }
 
   @Get('refresh')
@@ -55,15 +91,34 @@ export class AuthController {
     });
   }
 
+  @Post('push-testing')
+  async pushToken(@Body() data: MessageDto) {
+    return await this.firebaseService.pushNotification({
+      tokens: data.tokens,
+      notification: data.notification,
+    });
+  }
+
   @Post('deviceToken')
   @ApiBearerAuth()
   @UseGuards(AccessTokenAuthGuard)
-  async updateDeviceToken(
+  async addDeviceToken(
     @WhoAmI() me: StudentDocument,
-    @Body() data: PushToken,
+    @Body() data: PushTokenDto,
   ) {
     const { token } = data;
-    return this.authService.updateDeviceToken(me._id.toString(), token);
+    return this.authService.addDeviceToken(me._id.toString(), token);
+  }
+
+  @Delete('deviceToken')
+  @ApiBearerAuth()
+  @UseGuards(AccessTokenAuthGuard)
+  async removeDeviceToken(
+    @WhoAmI() me: StudentDocument,
+    @Query() data: PushTokenDto,
+  ) {
+    const { token } = data;
+    return this.authService.removeDeviceToken(me._id.toString(), token);
   }
 
   @Get('google')
