@@ -30,15 +30,15 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
   ) {
     if (!profile.emails || profile.emails.length === 0) {
       return done(
-        new NotFoundException('No email found in profile'),
         undefined,
+        new NotFoundException('No email found in profile'),
       );
     }
     const email = profile.emails[0].value;
     if (!email.endsWith('@fpt.edu.vn')) {
       return done(
-        new BadRequestException('Email must belong to fpt.edu.vn domain'),
         undefined,
+        new BadRequestException('Email must belong to fpt.edu.vn domain'),
       );
     }
     const student = await this.studentService.findByEmail(email);

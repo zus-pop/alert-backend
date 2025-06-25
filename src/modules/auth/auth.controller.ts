@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   HttpCode,
+  HttpException,
   HttpStatus,
   Post,
   Query,
@@ -21,11 +22,16 @@ import {
 } from '@nestjs/swagger';
 import { Response } from 'express';
 import { FirebaseService } from '../../shared/firebase/firebase.service';
-import { StudentDocument } from '../../shared/schemas/student.schema';
+import { StudentDocument } from '../../shared/schemas';
 import { AuthService } from './auth.service';
 import { WhoAmI } from './decorators';
-import { AuthLoginDto, MessageDto, PayloadDto, PushTokenDto } from './dto';
-import { ProfileDto } from './dto/profile.dto';
+import {
+  AuthLoginDto,
+  MessageDto,
+  PayloadDto,
+  ProfileDto,
+  PushTokenDto,
+} from './dto';
 import {
   AccessTokenAuthGuard,
   GoogleAuthGuard,
@@ -129,14 +135,18 @@ export class AuthController {
   @UseGuards(GoogleAuthGuard)
   async googleAuthRedirect(
     @Query('state') state: string,
-    @WhoAmI() me: StudentDocument,
+    @WhoAmI() me: StudentDocument | HttpException,
     @Res() res: Response,
   ) {
     const json: string = Buffer.from(state, 'base64').toString('utf-8');
 
     const { path }: { path: string } = JSON.parse(json);
+    if (me instanceof HttpException) {
+      return res.redirect(`${path}?error=${me.message}`);
+    }
+
     const result = await this.authService.loginGoogle(me);
-    res.redirect(
+    return res.redirect(
       `${path}?accessToken=${result.accessToken}&refreshToken=${result.refreshToken}`,
     );
   }
