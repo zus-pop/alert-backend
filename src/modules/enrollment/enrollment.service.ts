@@ -1,12 +1,12 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { CreateEnrollmentDto } from './dto/create-enrollment.dto';
-import { UpdateEnrollmentDto } from './dto/update-enrollment.dto';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model, Types } from 'mongoose';
+import { Pagination, SortCriteria } from '../../shared/dto';
 import { RedisService } from '../../shared/redis/redis.service';
 import { Enrollment, EnrollmentDocument } from '../../shared/schemas';
-import { Model, Types } from 'mongoose';
-import { InjectModel } from '@nestjs/mongoose';
 import { EnrollmentQueries } from './dto';
-import { Pagination, SortCriteria } from '../../shared/dto';
+import { CreateEnrollmentDto } from './dto/create-enrollment.dto';
+import { UpdateEnrollmentDto } from './dto/update-enrollment.dto';
 
 @Injectable()
 export class EnrollmentService {
@@ -77,8 +77,11 @@ export class EnrollmentService {
       ...pagination,
     });
 
-    const cacheData =
-      await this.redisService.getCachedData<EnrollmentDocument>(key);
+    const cacheData = await this.redisService.getCachedData<{
+      data: EnrollmentDocument[];
+      totalPages: number;
+      totalItems: number;
+    }>(key);
     if (cacheData) return cacheData;
 
     const sortField = sortCriteria.sortBy ?? 'enrollmentDate';
@@ -94,8 +97,19 @@ export class EnrollmentService {
           studentId: new Types.ObjectId(studentId),
           ...queries,
         })
-        .populate('studentId')
-        .populate('courseId')
+        .populate({
+          path: 'courseId',
+          populate: [
+            {
+              path: 'subjectId',
+              select: 'subjectCode subjectName',
+            },
+            {
+              path: 'semesterId',
+              select: 'semesterName startDate endDate',
+            },
+          ],
+        })
         .sort({ [sortField]: sortOrder })
         .skip(skip)
         .limit(limit),

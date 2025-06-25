@@ -1,8 +1,8 @@
 import {
-    BadRequestException,
-    Injectable,
-    Logger,
-    NotFoundException,
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { isValidObjectId, Model, Types } from 'mongoose';
@@ -97,6 +97,37 @@ export class StudentService {
     return student;
   }
 
+  async retrieveStudentDataById(id: string) {
+    const student = await this.findById(id);
+
+    // Get all enrollments for this student
+    const result = await this.enrollmentService.findByStudentId(
+      new Types.ObjectId(id),
+      {},
+      { sortBy: 'updatedAt', order: 'desc' },
+      { page: 1, limit: 100 },
+    );
+
+    return {
+      studentInfo: student,
+      enrollments: result.data,
+      totalEnrollments: result.totalItems,
+      profileCompleteness: this.calculateProfileCompleteness(student),
+    };
+  }
+
+  private calculateProfileCompleteness(student: StudentDocument): number {
+    const requiredFields = [
+      'firstName',
+      'lastName',
+      'email',
+      'phone',
+      'dateOfBirth',
+    ];
+    const completedFields = requiredFields.filter((field) => student[field]);
+    return Math.round((completedFields.length / requiredFields.length) * 100);
+  }
+
   async findEnrollmentsByStudentId(
     id: string,
     queries: EnrollmentQueries,
@@ -144,7 +175,11 @@ export class StudentService {
   async update(id: string, updateStudentDto: UpdateStudentDto) {
     const student = await this.findById(id);
 
-    Object.assign(student, updateStudentDto);
+    Object.keys(updateStudentDto).forEach(key => {
+      if (updateStudentDto[key] !== undefined) {
+        student[key] = updateStudentDto[key];
+      }
+    });
     return student.save();
   }
 

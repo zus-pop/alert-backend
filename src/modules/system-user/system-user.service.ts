@@ -120,7 +120,11 @@ export class SystemUserService {
   async update(id: string, updateSystemUserDto: UpdateSystemUserDto) {
     const systemUser = await this.findById(id);
 
-    Object.assign(systemUser, updateSystemUserDto);
+    Object.keys(updateSystemUserDto).forEach(key => {
+      if (updateSystemUserDto[key] !== undefined) {
+        systemUser[key] = updateSystemUserDto[key];
+      }
+    });
     this.redisService.invalidate(`system-user:${id}`);
     return systemUser.save();
   }

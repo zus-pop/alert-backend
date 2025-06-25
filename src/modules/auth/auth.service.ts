@@ -1,8 +1,8 @@
 import {
-    BadRequestException,
-    Injectable,
-    Logger,
-    NotFoundException,
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
@@ -10,6 +10,7 @@ import { StudentDocument, SystemUserDocument } from '../../shared/schemas';
 import { StudentService } from '../student/student.service';
 import { SystemUserService } from '../system-user/system-user.service';
 import { AuthLoginDto, PayloadDto } from './dto';
+import { ProfileDto } from './dto/profile.dto';
 
 @Injectable()
 export class AuthService {
@@ -60,6 +61,14 @@ export class AuthService {
     });
   }
 
+  async updateProfile(me: PayloadDto, data: ProfileDto) {
+    if (me.type === 'Student') {
+      return this.studentService.update(me.sub, data);
+    }
+
+    return this.systemUserService.update(me.sub, data);
+  }
+
   async refreshToken(user: {
     _id: string;
     email: string;
@@ -72,17 +81,33 @@ export class AuthService {
     };
 
     const accessToken = await this.signToken(payload, 'accessToken');
-
+    this.logger.log('Refreshed new access token');
     return accessToken;
   }
 
-  async updateDeviceToken(id: string, token: string) {
+  async addDeviceToken(id: string, token: string) {
     const student = await this.studentService.findById(id);
     if (!student.deviceTokens.includes(token)) {
       student.deviceTokens.push(token);
       this.logger.log('Updated device token');
     }
     return student.save();
+  }
+
+  async removeDeviceToken(id: string, token: string) {
+    const student = await this.studentService.findById(id);
+    const tokenIndex = student.deviceTokens.indexOf(token);
+    if (tokenIndex > -1) {
+      student.deviceTokens.splice(tokenIndex, 1);
+      this.logger.log('Removed device token');
+    }
+    return student.save();
+  }
+
+  async whoAmI(payload: PayloadDto) {
+    if (payload.type === 'System')
+      return this.systemUserService.findById(payload.sub);
+    else return this.studentService.findById(payload.sub);
   }
 
   async signToken(
