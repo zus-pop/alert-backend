@@ -32,6 +32,7 @@ export class Student {
 
   @Prop({
     required: true,
+    unique: true,
   })
   email: string;
   @Prop({
@@ -40,7 +41,7 @@ export class Student {
   gender: string;
 
   @Prop({
-    required: true,
+    required: false,
   })
   password: string;
 

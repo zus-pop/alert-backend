@@ -6,6 +6,7 @@ import {
   IsOptional,
   IsString,
 } from 'class-validator';
+import { Gender } from '../../../shared/schemas';
 
 export class CreateStudentDto {
   @IsString()
@@ -20,7 +21,10 @@ export class CreateStudentDto {
 
   @IsString()
   @IsNotEmpty()
-  @ApiProperty()
+  @ApiProperty({
+    enum: Gender,
+    description: 'Female or Male',
+  })
   @IsIn(['Male', 'Female'])
   gender: 'Male' | 'Female';
 
@@ -34,6 +38,5 @@ export class CreateStudentDto {
 
   @IsString()
   @IsOptional()
-  @ApiProperty()
   password?: string;
 }

@@ -6,19 +6,18 @@ import {
   HttpCode,
   HttpStatus,
   Param,
-  ParseIntPipe,
   Patch,
   Post,
   Query,
 } from '@nestjs/common';
-import { StudentService } from './student.service';
-import { StudentQueries } from './dto/student.queries.dto';
-import { SortCriteria } from '../../shared/dto/sort.dto';
 import { ApiQuery, ApiTags } from '@nestjs/swagger';
-import { Pagination } from '../../shared/dto/pagination.dto';
-import { CreateStudentDto, UpdateStudentDto } from './dto';
-import { EnrollmentQueries } from '../enrollment/dto';
 import { Types } from 'mongoose';
+import { Pagination } from '../../shared/dto/pagination.dto';
+import { SortCriteria } from '../../shared/dto/sort.dto';
+import { EnrollmentQueries } from '../enrollment/dto';
+import { CreateStudentDto, UpdateStudentDto } from './dto';
+import { StudentQueries } from './dto/student.queries.dto';
+import { StudentService } from './student.service';
 
 @ApiTags('Students')
 @Controller('students')
@@ -27,7 +26,9 @@ export class StudentController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  async create(@Body() createStudentDto: CreateStudentDto) {}
+  async create(@Body() createStudentDto: CreateStudentDto) {
+    return this.studentService.create(createStudentDto);
+  }
 
   @Get()
   @ApiQuery({
