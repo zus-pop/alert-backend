@@ -169,13 +169,23 @@ export class StudentService {
   }
 
   async create(createStudentDto: CreateStudentDto) {
-    return this.studentModel.create(createStudentDto);
+    try {
+      const student = await this.studentModel.findOne({
+        email: createStudentDto.email,
+      });
+
+      if (student) throw new BadRequestException('Email existed');
+
+      return await this.studentModel.create(createStudentDto);
+    } catch (error) {
+      throw new BadRequestException(error.message);
+    }
   }
 
   async update(id: string, updateStudentDto: UpdateStudentDto) {
     const student = await this.findById(id);
 
-    Object.keys(updateStudentDto).forEach(key => {
+    Object.keys(updateStudentDto).forEach((key) => {
       if (updateStudentDto[key] !== undefined) {
         student[key] = updateStudentDto[key];
       }
