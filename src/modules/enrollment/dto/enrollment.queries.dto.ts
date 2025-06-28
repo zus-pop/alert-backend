@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsOptional, IsString } from 'class-validator';
+import { Types } from 'mongoose';
 
 export class EnrollmentQueries {
   @IsString()
@@ -8,7 +9,7 @@ export class EnrollmentQueries {
     required: false,
     type: String,
   })
-  studentId?: string;
+  studentId?: Types.ObjectId | string;
 
   @IsString()
   @IsOptional()

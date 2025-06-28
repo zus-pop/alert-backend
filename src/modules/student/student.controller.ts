@@ -47,13 +47,11 @@ export class StudentController {
   @Get(':studentId/enrollments')
   async findEnrollmentsByStudentId(
     @Param('studentId') studentId: string,
-    @Query() queries: EnrollmentQueries,
     @Query() sortCriteria: SortCriteria,
     @Query() pagination: Pagination,
   ) {
     return this.studentService.findEnrollmentsByStudentId(
       studentId,
-      queries,
       sortCriteria,
       pagination,
     );

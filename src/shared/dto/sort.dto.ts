@@ -12,5 +12,5 @@ export class SortCriteria {
     required: false,
     enum: ['asc', 'desc', 'ascending', 'descending'],
   })
-  order?: 'asc' | 'desc' | 'ascending' | 'descending';
+  order?: 'asc' | 'desc' | 'ascending' | 'descending' = 'desc';
 }

@@ -2,6 +2,7 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Cache } from 'cache-manager';
 import crypto from 'crypto';
+import { COURSE_CACHE_KEY } from '../constant/constants';
 
 @Injectable()
 export class RedisService {
@@ -18,9 +19,16 @@ export class RedisService {
     return cachedData;
   }
 
-  async invalidate(key?: string) {
-    if (key) this.redisCache.del(key);
-    else this.redisCache.clear();
+  async clearCache(keyPattern: string) {
+    const store = this.redisCache.stores[0];
+    if (store?.iterator) {
+      for await (const [key, _] of store.iterator({})) {
+        if (key.startsWith(keyPattern)) {
+          this.redisCache.del(key);
+        }
+      }
+      this.logger.log(`Cleared cached data ${keyPattern}*`);
+    }
   }
 
   async cacheData<T>({

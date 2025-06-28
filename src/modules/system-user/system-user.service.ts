@@ -3,11 +3,13 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { isValidObjectId, Model } from 'mongoose';
+import { InjectConnection, InjectModel } from '@nestjs/mongoose';
+import { Connection, isValidObjectId, Model } from 'mongoose';
+import { SYSTEM_USER_KEY } from '../../shared/constant';
 import { Pagination, SortCriteria } from '../../shared/dto';
+import { WrongIdFormatException } from '../../shared/exceptions';
 import { RedisService } from '../../shared/redis/redis.service';
-import { SystemUser, SystemUserDocument } from '../../shared/schemas';
+import { SystemUser } from '../../shared/schemas';
 import { CreateSystemUserDto, UpdateSystemUserDto } from './dto';
 import { SystemUserQueries } from './dto/system-user.queries.dto';
 
@@ -16,8 +18,12 @@ export class SystemUserService {
   constructor(
     private readonly redisService: RedisService,
     @InjectModel(SystemUser.name) private systemUserModel: Model<SystemUser>,
+    @InjectConnection() private readonly connection: Connection,
   ) {}
 
+  async clearCache() {
+    await this.redisService.clearCache(SYSTEM_USER_KEY);
+  }
   create(createSystemUserDto: CreateSystemUserDto) {
     return this.systemUserModel.create(createSystemUserDto);
   }
@@ -27,18 +33,11 @@ export class SystemUserService {
     sortCriteria: SortCriteria,
     pagination: Pagination,
   ) {
-    // Find cached data first
-    const key = this.redisService.hashKey('system-users', {
-      ...queries,
-      ...sortCriteria,
-      ...pagination,
-    });
-    const cacheData =
-      await this.redisService.getCachedData<SystemUserDocument>(key);
-    if (cacheData) return cacheData;
-
-    const sortField = sortCriteria.sortBy ?? 'firstName';
-    const sortOrder = sortCriteria.order === 'desc' ? -1 : 1;
+    const sortField = sortCriteria.sortBy ?? 'updatedAt';
+    const sortOrder =
+      sortCriteria.order === 'ascending' || sortCriteria.order === 'asc'
+        ? 1
+        : -1;
 
     if (queries.firstName) {
       queries.firstName = {
@@ -73,39 +72,17 @@ export class SystemUserService {
       totalPage: Math.ceil(total / limit),
     };
 
-    if (systemUsers.length)
-      this.redisService.cacheData({
-        key: key,
-        data: response,
-        ttl: 30,
-      });
-
     return response;
   }
 
   async findById(id: string) {
-    if (!isValidObjectId(id))
-      throw new BadRequestException('Id is not right format');
-
-    const cachedData =
-      await this.redisService.getCachedData<SystemUserDocument>(
-        `system-user:${id}`,
-      );
-
-    if (cachedData) return cachedData;
+    if (!isValidObjectId(id)) throw new WrongIdFormatException();
 
     const systemUser = await this.systemUserModel
       .findById(id)
       .select('-password -__v');
 
     if (!systemUser) throw new NotFoundException('System user not found');
-
-    this.redisService.cacheData({
-      key: `system-user:${id}`,
-      data: systemUser,
-      ttl: 30,
-    });
-
     return systemUser;
   }
 
@@ -118,18 +95,34 @@ export class SystemUserService {
   }
 
   async update(id: string, updateSystemUserDto: UpdateSystemUserDto) {
-    const systemUser = await this.findById(id);
+    if (!isValidObjectId(id)) throw new WrongIdFormatException();
 
-    Object.keys(updateSystemUserDto).forEach(key => {
-      if (updateSystemUserDto[key] !== undefined) {
-        systemUser[key] = updateSystemUserDto[key];
-      }
-    });
-    this.redisService.invalidate(`system-user:${id}`);
-    return systemUser.save();
+    const session = await this.connection.startSession();
+    session.startTransaction();
+    try {
+      const systemUser = await this.systemUserModel.findByIdAndUpdate(
+        id,
+        updateSystemUserDto,
+        { new: true },
+      );
+
+      if (!systemUser) throw new BadRequestException('System User not found');
+
+      await this.clearCache();
+      await session.commitTransaction();
+      return systemUser;
+    } catch (error) {
+      await session.abortTransaction();
+      throw new BadRequestException(error.message);
+    } finally {
+      await session.endSession();
+    }
   }
 
   async remove(id: string) {
+    if (!isValidObjectId(id)) throw new WrongIdFormatException();
+    const session = await this.connection.startSession();
+    session.startTransaction();
     const result = await this.systemUserModel.findByIdAndDelete(id);
 
     if (!result) throw new NotFoundException('System user not found');

@@ -26,7 +26,7 @@ export class CreateStudentDto {
     description: 'Female or Male',
   })
   @IsIn(['Male', 'Female'])
-  gender: 'Male' | 'Female';
+  gender?: 'Male' | 'Female';
 
   @IsEmail()
   @IsOptional()

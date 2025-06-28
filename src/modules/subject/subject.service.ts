@@ -1,10 +1,16 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { isValidObjectId, Model } from 'mongoose';
 import { Subject, SubjectDocument } from '../../shared/schemas';
 import { CreateSubjectDto, SubjectQueries, UpdateSubjectDto } from './dto';
 import { Pagination, SortCriteria } from '../../shared/dto';
 import { RedisService } from '../../shared/redis/redis.service';
+import { CacheKey, CacheTTL } from '@nestjs/cache-manager';
+import { SUBJECT_CACHE_KEY } from '../../shared/constant';
 
 @Injectable()
 export class SubjectService {
@@ -13,8 +19,12 @@ export class SubjectService {
     @InjectModel(Subject.name) private subjectModel: Model<Subject>,
   ) {}
 
-  create(createSubjectDto: CreateSubjectDto) {
-    return this.subjectModel.create(createSubjectDto);
+  async clearCache() {
+    await this.redisService.clearCache(SUBJECT_CACHE_KEY);
+  }
+
+  async create(createSubjectDto: CreateSubjectDto) {
+    return await this.subjectModel.create(createSubjectDto);
   }
 
   async findAll(
@@ -22,18 +32,11 @@ export class SubjectService {
     sortCriteria: SortCriteria,
     pagination: Pagination,
   ) {
-    // Find cached data first
-    const key = this.redisService.hashKey('subjects', {
-      ...queries,
-      ...sortCriteria,
-      ...pagination,
-    });
-    const cacheData =
-      await this.redisService.getCachedData<SubjectDocument>(key);
-    if (cacheData) return cacheData;
-
     const sortField = sortCriteria.sortBy ?? 'subjectName';
-    const sortOrder = sortCriteria.order === 'desc' ? -1 : 1;
+    const sortOrder =
+      sortCriteria.order === 'ascending' || sortCriteria.order === 'asc'
+        ? 1
+        : -1;
 
     if (queries.subjectName) {
       queries.subjectName = {
@@ -60,54 +63,44 @@ export class SubjectService {
       totalItems: total,
       totalPage: Math.ceil(total / limit),
     };
-
-    if (subjects.length)
-      this.redisService.cacheData({
-        key: key,
-        data: response,
-        ttl: 30,
-      });
-
     return response;
   }
 
   async findOne(id: string) {
-    const cachedData = await this.redisService.getCachedData<SubjectDocument>(
-      `subject:${id}`,
-    );
-
-    if (cachedData) return cachedData;
-
+    if (!isValidObjectId(id))
+      throw new BadRequestException('Id is wrong format');
     const subject = await this.subjectModel.findById(id);
-
     if (!subject) throw new NotFoundException('Subject not found');
-
-    this.redisService.cacheData({
-      key: `subject:${id}`,
-      data: subject,
-      ttl: 30,
-    });
-
     return subject;
   }
 
   async update(id: string, updateSubjectDto: UpdateSubjectDto) {
-    const subject = await this.findOne(id);
+    if (!isValidObjectId(id))
+      throw new BadRequestException('Id is wrong format');
 
-    Object.assign(subject, updateSubjectDto);
+    const subject = await this.subjectModel.findByIdAndUpdate(
+      id,
+      updateSubjectDto,
+      { new: true },
+    );
 
-    this.redisService.invalidate(`student:${id}`);
-    return subject.save();
-}
+    if (!subject) throw new BadRequestException('Subject not found');
 
-async remove(id: string) {
+    await this.clearCache();
+    return subject;
+  }
+
+  async remove(id: string) {
+    if (!isValidObjectId(id))
+      throw new BadRequestException('Id is wrong format');
+
     const result = await this.subjectModel.findByIdAndDelete(id);
-    
+
     if (!result) {
-        throw new NotFoundException('Subject not found!');
+      throw new NotFoundException('Subject not found!');
     }
-    
-    this.redisService.invalidate(`student:${id}`);
+
+    await this.clearCache();
     return result;
   }
 }

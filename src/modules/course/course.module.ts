@@ -1,10 +1,9 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Course, CourseSchema } from '../../shared/schemas';
+import { SessionModule } from '../session/session.module';
 import { CourseController } from './course.controller';
 import { CourseService } from './course.service';
-import { SessionService } from '../session/session.service';
-import { SessionModule } from '../session/session.module';
 
 @Module({
   imports: [

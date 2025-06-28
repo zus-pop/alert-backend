@@ -2,6 +2,7 @@ import { createKeyv } from '@keyv/redis';
 import { CacheModule } from '@nestjs/cache-manager';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AppService } from './app.service';
 import { AiModule } from './modules/ai/ai.module';
@@ -15,6 +16,7 @@ import { StudentModule } from './modules/student/student.module';
 import { SubjectModule } from './modules/subject/subject.module';
 import { SystemUserModule } from './modules/system-user/system-user.module';
 import { FirebaseModule } from './shared/firebase/firebase.module';
+import { HttpCacheInterceptor } from './shared/interceptor';
 import { RedisModule } from './shared/redis/redis.module';
 
 @Module({
@@ -26,6 +28,7 @@ import { RedisModule } from './shared/redis/redis.module';
       useFactory: async (configService: ConfigService) => {
         return {
           stores: [createKeyv(configService.get<string>('REDIS_URL'))],
+          ttl: 10 * 1000,
         };
       },
       inject: [ConfigService],
@@ -51,6 +54,12 @@ import { RedisModule } from './shared/redis/redis.module';
     FirebaseModule,
   ],
   controllers: [],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: HttpCacheInterceptor,
+    },
+  ],
 })
 export class AppModule {}
