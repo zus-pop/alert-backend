@@ -1,9 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { InjectConnection, InjectModel } from '@nestjs/mongoose';
+import { Connection, isValidObjectId, Model, Types } from 'mongoose';
+import { ENROLLMENT_CACHE_KEY } from '../../shared/constant';
 import { Pagination, SortCriteria } from '../../shared/dto';
+import { WrongIdFormatException } from '../../shared/exceptions';
 import { RedisService } from '../../shared/redis/redis.service';
-import { Enrollment, EnrollmentDocument } from '../../shared/schemas';
+import { Enrollment } from '../../shared/schemas';
 import { EnrollmentQueries } from './dto';
 import { CreateEnrollmentDto } from './dto/create-enrollment.dto';
 import { UpdateEnrollmentDto } from './dto/update-enrollment.dto';
@@ -13,9 +15,14 @@ export class EnrollmentService {
   constructor(
     private readonly redisService: RedisService,
     @InjectModel(Enrollment.name) private enrollmentModel: Model<Enrollment>,
+    @InjectConnection() private readonly connection: Connection,
   ) {}
   create(createEnrollmentDto: CreateEnrollmentDto) {
     return this.enrollmentModel.create(createEnrollmentDto);
+  }
+
+  async clearCache() {
+    await this.redisService.clearCache(ENROLLMENT_CACHE_KEY);
   }
 
   async findAll(
@@ -23,18 +30,14 @@ export class EnrollmentService {
     sortCriteria: SortCriteria,
     pagination: Pagination,
   ) {
-    const key = this.redisService.hashKey('enrollments', {
-      ...queries,
-      ...sortCriteria,
-      ...pagination,
-    });
-
-    const cacheData =
-      await this.redisService.getCachedData<EnrollmentDocument>(key);
-    if (cacheData) return cacheData;
-
+    if (queries.studentId) {
+      queries.studentId = new Types.ObjectId(queries.studentId);
+    }
     const sortField = sortCriteria.sortBy ?? 'enrollmentDate';
-    const sortOrder = sortCriteria.order === 'desc' ? -1 : 1;
+    const sortOrder =
+      sortCriteria.order === 'ascending' || sortCriteria.order === 'asc'
+        ? 1
+        : -1;
 
     const page = pagination.page ?? 1;
     const limit = pagination.limit ?? 10;
@@ -54,38 +57,19 @@ export class EnrollmentService {
       totalItems: total,
       totalPage: Math.ceil(total / limit),
     };
-
-    if (enrollments.length)
-      this.redisService.cacheData({
-        key: key,
-        data: response,
-        ttl: 30,
-      });
-
     return response;
   }
 
   async findByStudentId(
     studentId: Types.ObjectId,
-    queries: EnrollmentQueries,
     sortCriteria: SortCriteria,
     pagination: Pagination,
   ) {
-    const key = this.redisService.hashKey('enrollments', {
-      ...queries,
-      ...sortCriteria,
-      ...pagination,
-    });
-
-    const cacheData = await this.redisService.getCachedData<{
-      data: EnrollmentDocument[];
-      totalPages: number;
-      totalItems: number;
-    }>(key);
-    if (cacheData) return cacheData;
-
     const sortField = sortCriteria.sortBy ?? 'enrollmentDate';
-    const sortOrder = sortCriteria.order === 'desc' ? -1 : 1;
+    const sortOrder =
+      sortCriteria.order === 'ascending' || sortCriteria.order === 'asc'
+        ? 1
+        : -1;
 
     const page = pagination.page ?? 1;
     const limit = pagination.limit ?? 10;
@@ -94,8 +78,7 @@ export class EnrollmentService {
     const [enrollments, total] = await Promise.all([
       this.enrollmentModel
         .find({
-          studentId: new Types.ObjectId(studentId),
-          ...queries,
+          studentId: studentId,
         })
         .populate({
           path: 'courseId',
@@ -113,7 +96,7 @@ export class EnrollmentService {
         .sort({ [sortField]: sortOrder })
         .skip(skip)
         .limit(limit),
-      this.enrollmentModel.countDocuments({ studentId: studentId, ...queries }),
+      this.enrollmentModel.countDocuments({ studentId: studentId }),
     ]);
 
     const response = {
@@ -121,13 +104,6 @@ export class EnrollmentService {
       totalItems: total,
       totalPage: Math.ceil(total / limit),
     };
-
-    if (enrollments.length)
-      this.redisService.cacheData({
-        key: key,
-        data: response,
-        ttl: 30,
-      });
 
     return response;
   }
@@ -144,13 +120,47 @@ export class EnrollmentService {
   }
 
   async update(id: string, updateEnrollmentDto: UpdateEnrollmentDto) {
-    const enrollment = await this.findOne(id);
+    if (!isValidObjectId(id)) throw new WrongIdFormatException();
 
-    Object.assign(enrollment, updateEnrollmentDto);
-    return enrollment.save();
+    const session = await this.connection.startSession();
+    session.startTransaction();
+
+    try {
+      const enrollment = await this.enrollmentModel.findByIdAndUpdate(
+        id,
+        updateEnrollmentDto,
+        {
+          new: true,
+        },
+      );
+
+      if (!enrollment) throw new NotFoundException('Enrollment not found');
+      await this.clearCache();
+      await session.commitTransaction();
+      return enrollment;
+    } catch (error) {
+      await session.abortTransaction();
+      throw new NotFoundException(error.message);
+    } finally {
+      await session.endSession();
+    }
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} enrollment`;
+  async remove(id: number) {
+    if (!isValidObjectId(id)) throw new WrongIdFormatException();
+    const session = await this.connection.startSession();
+    session.startTransaction();
+    try {
+      const enrollment = await this.enrollmentModel.findByIdAndDelete(id);
+      if (!enrollment) throw new NotFoundException('Enrollment not found');
+      await this.clearCache();
+      await session.commitTransaction();
+      return enrollment;
+    } catch (error) {
+      await session.abortTransaction();
+      throw new NotFoundException(error.message);
+    } finally {
+      await session.endSession();
+    }
   }
 }

@@ -4,14 +4,16 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { isValidObjectId, Model, Types } from 'mongoose';
+import { InjectConnection, InjectModel } from '@nestjs/mongoose';
+import { Connection, isValidObjectId, Model, Types } from 'mongoose';
 import { Pagination, SortCriteria } from '../../shared/dto';
 import { RedisService } from '../../shared/redis/redis.service';
 import { Student, StudentDocument } from '../../shared/schemas';
 import { EnrollmentQueries } from '../enrollment/dto';
 import { EnrollmentService } from '../enrollment/enrollment.service';
 import { CreateStudentDto, StudentQueries, UpdateStudentDto } from './dto';
+import { STUDENT_CACHE_KEY } from '../../shared/constant';
+import { WrongIdFormatException } from '../../shared/exceptions';
 
 @Injectable()
 export class StudentService {
@@ -21,25 +23,23 @@ export class StudentService {
     @InjectModel(Student.name) private studentModel: Model<Student>,
     private readonly redisService: RedisService,
     private readonly enrollmentService: EnrollmentService,
+    @InjectConnection() private readonly connection: Connection,
   ) {}
+
+  async clearCache() {
+    await this.redisService.clearCache(STUDENT_CACHE_KEY);
+  }
 
   async find(
     queries: StudentQueries,
     sortCriteria: SortCriteria,
     pagination: Pagination,
   ) {
-    // Find cached data first
-    const key = this.redisService.hashKey('students', {
-      ...queries,
-      ...sortCriteria,
-      ...pagination,
-    });
-    const cacheData =
-      await this.redisService.getCachedData<StudentDocument>(key);
-    if (cacheData) return cacheData;
-
     const sortField = sortCriteria.sortBy ?? 'firstName';
-    const sortOrder = sortCriteria.order === 'desc' ? -1 : 1;
+    const sortOrder =
+      sortCriteria.order === 'ascending' || sortCriteria.order === 'asc'
+        ? 1
+        : -1;
 
     if (queries.firstName) {
       queries.firstName = {
@@ -73,20 +73,11 @@ export class StudentService {
       totalItems: total,
       totalPage: Math.ceil(total / limit),
     };
-
-    if (students.length)
-      this.redisService.cacheData({
-        key: key,
-        data: response,
-        ttl: 30,
-      });
-
     return response;
   }
 
   async findById(id: string) {
-    if (!isValidObjectId(id))
-      throw new BadRequestException('Id is not right format');
+    if (!isValidObjectId(id)) throw new WrongIdFormatException();
 
     const student = await this.studentModel
       .findById(id)
@@ -103,7 +94,6 @@ export class StudentService {
     // Get all enrollments for this student
     const result = await this.enrollmentService.findByStudentId(
       new Types.ObjectId(id),
-      {},
       { sortBy: 'updatedAt', order: 'desc' },
       { page: 1, limit: 100 },
     );
@@ -130,7 +120,6 @@ export class StudentService {
 
   async findEnrollmentsByStudentId(
     id: string,
-    queries: EnrollmentQueries,
     sortCriteria: SortCriteria,
     pagination: Pagination,
   ) {
@@ -138,7 +127,6 @@ export class StudentService {
 
     return await this.enrollmentService.findByStudentId(
       new Types.ObjectId(id),
-      queries,
       sortCriteria,
       pagination,
     );
@@ -169,37 +157,65 @@ export class StudentService {
   }
 
   async create(createStudentDto: CreateStudentDto) {
+    const session = await this.connection.startSession();
+    session.startTransaction();
+
     try {
       const student = await this.studentModel.findOne({
         email: createStudentDto.email,
       });
 
       if (student) throw new BadRequestException('Email existed');
-
+      await this.clearCache();
+      await session.commitTransaction();
       return await this.studentModel.create(createStudentDto);
     } catch (error) {
+      await session.abortTransaction();
       throw new BadRequestException(error.message);
+    } finally {
+      await session.endSession();
     }
   }
 
   async update(id: string, updateStudentDto: UpdateStudentDto) {
-    const student = await this.findById(id);
+    const session = await this.connection.startSession();
+    session.startTransaction();
 
-    Object.keys(updateStudentDto).forEach((key) => {
-      if (updateStudentDto[key] !== undefined) {
-        student[key] = updateStudentDto[key];
-      }
-    });
-    return student.save();
+    try {
+      const student = await this.studentModel.findByIdAndUpdate(
+        id,
+        updateStudentDto,
+        { new: true },
+      );
+      if (!student) throw new BadRequestException('Student not found');
+      await this.clearCache();
+      return student;
+    } catch (error) {
+      await session.abortTransaction();
+      throw new BadRequestException(error.message);
+    } finally {
+      await session.endSession();
+    }
   }
 
   async remove(id: string) {
-    const result = await this.studentModel.findByIdAndDelete(id);
+    const session = await this.connection.startSession();
+    session.startTransaction();
 
-    if (!result) {
-      throw new NotFoundException('Student not found!');
+    try {
+      const result = await this.studentModel.findByIdAndDelete(id);
+
+      if (!result) {
+        throw new NotFoundException('Student not found!');
+      }
+      await this.clearCache();
+      await session.commitTransaction();
+      return result;
+    } catch (error) {
+      await session.abortTransaction();
+      throw new BadRequestException(error.message);
+    } finally {
+      session.endSession();
     }
-
-    return result;
   }
 }

@@ -4,14 +4,16 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
-import { Connection, Model } from 'mongoose';
+import { Connection, isValidObjectId, Model } from 'mongoose';
 import { Pagination, SortCriteria } from '../../shared/dto';
 import { RedisService } from '../../shared/redis/redis.service';
-import { Course, EnrollmentDocument } from '../../shared/schemas';
+import { Course } from '../../shared/schemas';
+import { SessionService } from '../session/session.service';
 import { CourseQueries } from './dto/course.queries.dto';
 import { CreateCourseDto } from './dto/create-course.dto';
 import { UpdateCourseDto } from './dto/update-course.dto';
-import { SessionService } from '../session/session.service';
+import { COURSE_CACHE_KEY } from '../../shared/constant';
+import { WrongIdFormatException } from '../../shared/exceptions';
 
 @Injectable()
 export class CourseService {
@@ -22,7 +24,19 @@ export class CourseService {
     private readonly sessionService: SessionService,
   ) {}
 
+  async clearCache() {
+    await this.redisService.clearCache(COURSE_CACHE_KEY);
+  }
+
   async create(createCourseDto: CreateCourseDto) {
+    if (
+      !isValidObjectId(createCourseDto.semesterId) ||
+      !isValidObjectId(createCourseDto.subjectId)
+    )
+      throw new WrongIdFormatException(
+        'SemesterId or SubjectId is wrong format',
+      );
+
     const session = await this.connection.startSession();
     session.startTransaction();
 
@@ -32,7 +46,7 @@ export class CourseService {
       await this.sessionService.createManySessionByCourseId(
         course._id.toString(),
       );
-
+      await this.clearCache();
       await session.commitTransaction();
       return course;
     } catch (error) {
@@ -48,18 +62,11 @@ export class CourseService {
     sortCriteria: SortCriteria,
     pagination: Pagination,
   ) {
-    // Find cached data first
-    const key = this.redisService.hashKey('courses', {
-      ...queries,
-      ...sortCriteria,
-      ...pagination,
-    });
-    const cacheData =
-      await this.redisService.getCachedData<EnrollmentDocument>(key);
-    if (cacheData) return cacheData;
-
     const sortField = sortCriteria.sortBy ?? '_id';
-    const sortOrder = sortCriteria.order === 'desc' ? -1 : 1;
+    const sortOrder =
+      sortCriteria.order === 'ascending' || sortCriteria.order === 'asc'
+        ? 1
+        : -1;
 
     const page = pagination.page ?? 1;
     const limit = pagination.limit ?? 10;
@@ -67,7 +74,7 @@ export class CourseService {
 
     const [courses, total] = await Promise.all([
       this.courseModel
-        .find(queries)
+        .find()
         .populate('subjectId')
         .populate('semesterId')
         .sort({ [sortField]: sortOrder })
@@ -82,17 +89,12 @@ export class CourseService {
       totalPage: Math.ceil(total / limit),
     };
 
-    if (courses.length)
-      this.redisService.cacheData({
-        key: key,
-        data: response,
-        ttl: 30,
-      });
-
     return response;
   }
 
   async findOne(id: string) {
+    if (!isValidObjectId(id)) throw new WrongIdFormatException();
+
     const course = await this.courseModel
       .findById(id)
       .populate('semesterId')
@@ -110,13 +112,30 @@ export class CourseService {
   }
 
   async update(id: string, updateCourseDto: UpdateCourseDto) {
-    const course = await this.findOne(id);
+    if (!isValidObjectId(id)) throw new WrongIdFormatException();
 
-    Object.assign(course, updateCourseDto);
-    return course.save();
+    const session = await this.connection.startSession();
+    session.startTransaction();
+    try {
+      const course = await this.courseModel.findByIdAndUpdate(
+        id,
+        updateCourseDto,
+        { new: true },
+      );
+      await this.clearCache();
+      session.endSession();
+      return course;
+    } catch (error) {
+      session.abortTransaction();
+      throw new BadRequestException({ message: error.message });
+    } finally {
+      session.endSession();
+    }
   }
 
   async remove(id: string) {
+    if (!isValidObjectId(id)) throw new WrongIdFormatException();
+
     const session = await this.connection.startSession();
     session.startTransaction();
 
@@ -128,6 +147,7 @@ export class CourseService {
       }
 
       await this.sessionService.removeManyByCourseId(id);
+      await this.clearCache();
 
       await session.commitTransaction();
       return { message: 'Course and related 20 sessions deleted successfully' };
