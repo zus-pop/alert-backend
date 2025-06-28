@@ -1,16 +1,14 @@
-import { CacheKey, CacheTTL } from '@nestjs/cache-manager';
 import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  Patch,
-  Post,
-  Query,
+    Body,
+    Controller,
+    Delete,
+    Get,
+    Param,
+    Patch,
+    Post,
+    Query,
 } from '@nestjs/common';
 import { Pagination, SortCriteria } from '../../shared/dto';
-import { COURSE_CACHE_KEY } from '../../shared/constant/constants';
 import { CourseService } from './course.service';
 import { CourseQueries } from './dto/course.queries.dto';
 import { CreateCourseDto } from './dto/create-course.dto';
