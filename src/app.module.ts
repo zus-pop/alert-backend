@@ -28,7 +28,7 @@ import { RedisModule } from './shared/redis/redis.module';
       useFactory: async (configService: ConfigService) => {
         return {
           stores: [createKeyv(configService.get<string>('REDIS_URL'))],
-          ttl: 10 * 1000,
+          ttl: 30 * 1000,
         };
       },
       inject: [ConfigService],

@@ -14,7 +14,7 @@ import { UpdateEnrollmentDto } from './dto/update-enrollment.dto';
 import { EnrollmentQueries } from './dto';
 import { Pagination, SortCriteria } from '../../shared/dto';
 
-@Controller('enrollment')
+@Controller('enrollments')
 export class EnrollmentController {
   constructor(private readonly enrollmentService: EnrollmentService) {}
 
