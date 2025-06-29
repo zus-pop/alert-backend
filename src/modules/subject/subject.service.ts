@@ -3,20 +3,20 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { isValidObjectId, Model } from 'mongoose';
-import { Subject, SubjectDocument } from '../../shared/schemas';
-import { CreateSubjectDto, SubjectQueries, UpdateSubjectDto } from './dto';
+import { InjectConnection, InjectModel } from '@nestjs/mongoose';
+import { Connection, isValidObjectId, Model } from 'mongoose';
+import { SUBJECT_CACHE_KEY } from '../../shared/constant';
 import { Pagination, SortCriteria } from '../../shared/dto';
 import { RedisService } from '../../shared/redis/redis.service';
-import { CacheKey, CacheTTL } from '@nestjs/cache-manager';
-import { SUBJECT_CACHE_KEY } from '../../shared/constant';
+import { Subject } from '../../shared/schemas';
+import { CreateSubjectDto, SubjectQueries, UpdateSubjectDto } from './dto';
 
 @Injectable()
 export class SubjectService {
   constructor(
     private readonly redisService: RedisService,
     @InjectModel(Subject.name) private subjectModel: Model<Subject>,
+    @InjectConnection() private readonly connection: Connection,
   ) {}
 
   async clearCache() {
@@ -24,7 +24,27 @@ export class SubjectService {
   }
 
   async create(createSubjectDto: CreateSubjectDto) {
-    return await this.subjectModel.create(createSubjectDto);
+    const session = await this.connection.startSession();
+    session.startTransaction();
+    try {
+      const existingSubject = await this.subjectModel.findOne({
+        subjectCode: createSubjectDto.subjectCode,
+      });
+
+      if (existingSubject) {
+        throw new BadRequestException('Subject code already exists');
+      }
+
+      const subject = await this.subjectModel.create(createSubjectDto);
+      await this.clearCache();
+      await session.commitTransaction();
+      return subject;
+    } catch (error) {
+      await session.abortTransaction();
+      throw new BadRequestException(error.message);
+    } finally {
+      await session.endSession();
+    }
   }
 
   async findAll(

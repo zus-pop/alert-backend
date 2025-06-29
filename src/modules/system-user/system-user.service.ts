@@ -10,8 +10,11 @@ import { Pagination, SortCriteria } from '../../shared/dto';
 import { WrongIdFormatException } from '../../shared/exceptions';
 import { RedisService } from '../../shared/redis/redis.service';
 import { SystemUser } from '../../shared/schemas';
-import { CreateSystemUserDto, UpdateSystemUserDto } from './dto';
-import { SystemUserQueries } from './dto/system-user.queries.dto';
+import {
+  CreateSystemUserDto,
+  SystemUserQueries,
+  UpdateSystemUserDto,
+} from './dto';
 
 @Injectable()
 export class SystemUserService {
@@ -24,8 +27,28 @@ export class SystemUserService {
   async clearCache() {
     await this.redisService.clearCache(SYSTEM_USER_KEY);
   }
-  create(createSystemUserDto: CreateSystemUserDto) {
-    return this.systemUserModel.create(createSystemUserDto);
+
+  async create(createSystemUserDto: CreateSystemUserDto) {
+    // Check if the email already exists
+    const existingUser = await this.systemUserModel.findOne({
+      email: createSystemUserDto.email,
+    });
+    if (existingUser) {
+      throw new BadRequestException('Email already exists');
+    }
+    const session = await this.connection.startSession();
+    session.startTransaction();
+    try {
+      const systemUser = await this.systemUserModel.create(createSystemUserDto);
+      await this.clearCache();
+      await session.commitTransaction();
+      return systemUser;
+    } catch (error) {
+      await session.abortTransaction();
+      throw new BadRequestException(error.message);
+    } finally {
+      await session.endSession();
+    }
   }
 
   async findAll(
@@ -78,9 +101,7 @@ export class SystemUserService {
   async findById(id: string) {
     if (!isValidObjectId(id)) throw new WrongIdFormatException();
 
-    const systemUser = await this.systemUserModel
-      .findById(id)
-      .select('-password -__v');
+    const systemUser = await this.systemUserModel.findById(id).select('-__v');
 
     if (!systemUser) throw new NotFoundException('System user not found');
     return systemUser;
@@ -121,12 +142,21 @@ export class SystemUserService {
 
   async remove(id: string) {
     if (!isValidObjectId(id)) throw new WrongIdFormatException();
+
     const session = await this.connection.startSession();
     session.startTransaction();
-    const result = await this.systemUserModel.findByIdAndDelete(id);
 
-    if (!result) throw new NotFoundException('System user not found');
-
-    return result;
+    try {
+      const result = await this.systemUserModel.findByIdAndDelete(id);
+      if (!result) throw new NotFoundException('System user not found');
+      await this.clearCache();
+      await session.commitTransaction();
+      return result;
+    } catch (error) {
+      await session.abortTransaction();
+      throw new BadRequestException(error.message);
+    } finally {
+      await session.endSession();
+    }
   }
 }

@@ -3,16 +3,16 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { CreateSemesterDto } from './dto/create-semester.dto';
-import { UpdateSemesterDto } from './dto/update-semester.dto';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
-import { Semester, SemesterDocument } from '../../shared/schemas';
 import { Connection, isValidObjectId, Model } from 'mongoose';
-import { SemesterQueries } from './dto/semester.queries.dto';
-import { Pagination, SortCriteria } from '../../shared/dto';
-import { RedisService } from '../../shared/redis/redis.service';
 import { SEMESTER_CACHE_KEY } from '../../shared/constant';
+import { Pagination, SortCriteria } from '../../shared/dto';
 import { WrongIdFormatException } from '../../shared/exceptions';
+import { RedisService } from '../../shared/redis/redis.service';
+import { Semester } from '../../shared/schemas';
+import { CreateSemesterDto } from './dto/create-semester.dto';
+import { SemesterQueries } from './dto/semester.queries.dto';
+import { UpdateSemesterDto } from './dto/update-semester.dto';
 
 @Injectable()
 export class SemesterService {

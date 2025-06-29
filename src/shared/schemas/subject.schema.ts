@@ -10,6 +10,7 @@ export type SubjectDocument = HydratedDocument<Subject>;
 export class Subject {
   @Prop({
     required: true,
+    unique: true,
   })
   subjectCode: string;
   @Prop({

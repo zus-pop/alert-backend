@@ -4,8 +4,10 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { MongooseModule } from '@nestjs/mongoose';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AppService } from './app.service';
 import { AiModule } from './modules/ai/ai.module';
+import { AlertModule } from './modules/alert/alert.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CourseModule } from './modules/course/course.module';
@@ -24,6 +26,7 @@ import { RedisModule } from './shared/redis/redis.module';
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    ScheduleModule.forRoot(),
     CacheModule.registerAsync({
       useFactory: async (configService: ConfigService) => {
         return {
@@ -52,6 +55,7 @@ import { RedisModule } from './shared/redis/redis.module';
     EnrollmentModule,
     AiModule,
     FirebaseModule,
+    AlertModule,
   ],
   controllers: [],
   providers: [

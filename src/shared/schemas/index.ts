@@ -6,3 +6,4 @@ export * from './course.schema';
 export * from './enrollment.schema';
 export * from './attendance.schema';
 export * from './session.schema';
+export * from './alert.schema';
