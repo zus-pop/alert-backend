@@ -94,6 +94,11 @@ export class StudentController {
 
   @Delete(':id')
   async remove(@Param('id') id: string) {
-    return this.remove(id);
+    return this.studentService.remove(id);
+  }
+
+  @Patch(':id/restore')
+  async restore(@Param('id') id: string) {
+    return this.studentService.restore(id);
   }
 }

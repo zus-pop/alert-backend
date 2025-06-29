@@ -61,11 +61,13 @@ export class StudentService {
 
     const [students, total] = await Promise.all([
       this.studentModel
+        .where({ isDeleted: false })
+        .select('-password -__v')
         .find(queries)
         .sort({ [sortField]: sortOrder })
         .skip(skip)
         .limit(limit),
-      this.studentModel.countDocuments(queries),
+      this.studentModel.where({ isDeleted: false }).countDocuments(queries),
     ]);
 
     const response = {
@@ -80,6 +82,7 @@ export class StudentService {
     if (!isValidObjectId(id)) throw new WrongIdFormatException();
 
     const student = await this.studentModel
+      .where({ isDeleted: false })
       .findById(id)
       .select('-password -__v');
 
@@ -93,7 +96,7 @@ export class StudentService {
 
     // Get all enrollments for this student
     const result = await this.enrollmentService.findByStudentId(
-      new Types.ObjectId(id),
+      student._id,
       { sortBy: 'updatedAt', order: 'desc' },
       { page: 1, limit: 100 },
     );
@@ -136,6 +139,8 @@ export class StudentService {
     studentId: Types.ObjectId,
     enrollmentId: Types.ObjectId,
   ) {
+    await this.findById(studentId.toString());
+
     const enrollment = await this.enrollmentService.findOne(
       enrollmentId.toString(),
     );
@@ -149,7 +154,9 @@ export class StudentService {
   }
 
   async findByEmail(email: string) {
-    const student = await this.studentModel.findOne({ email: email });
+    const student = await this.studentModel
+      .where({ isDeleted: false })
+      .findOne({ email: email });
 
     if (!student) throw new NotFoundException('Student not found!');
 
@@ -182,11 +189,9 @@ export class StudentService {
     session.startTransaction();
 
     try {
-      const student = await this.studentModel.findByIdAndUpdate(
-        id,
-        updateStudentDto,
-        { new: true },
-      );
+      const student = await this.studentModel
+        .where({ isDeleted: false })
+        .findByIdAndUpdate(id, updateStudentDto, { new: true });
       if (!student) throw new BadRequestException('Student not found');
       await this.clearCache();
       return student;
@@ -199,11 +204,48 @@ export class StudentService {
   }
 
   async remove(id: string) {
+    if (!isValidObjectId(id)) throw new WrongIdFormatException();
+
     const session = await this.connection.startSession();
     session.startTransaction();
 
     try {
-      const result = await this.studentModel.findByIdAndDelete(id);
+      const result = await this.studentModel
+        .where({ isDeleted: false })
+        .findByIdAndUpdate(
+          id,
+          { isDeleted: true, deletedAt: new Date() },
+          { new: true },
+        );
+
+      if (!result) {
+        throw new NotFoundException('Student not found!');
+      }
+      await this.clearCache();
+      await session.commitTransaction();
+      return result;
+    } catch (error) {
+      await session.abortTransaction();
+      throw new BadRequestException(error.message);
+    } finally {
+      session.endSession();
+    }
+  }
+
+  async restore(id: string) {
+    if (!isValidObjectId(id)) throw new WrongIdFormatException();
+
+    const session = await this.connection.startSession();
+    session.startTransaction();
+
+    try {
+      const result = await this.studentModel
+        .where({ isDeleted: true })
+        .findByIdAndUpdate(
+          id,
+          { isDeleted: false, deletedAt: null },
+          { new: true },
+        );
 
       if (!result) {
         throw new NotFoundException('Student not found!');

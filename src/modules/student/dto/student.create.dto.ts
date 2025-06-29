@@ -5,10 +5,23 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  Matches,
 } from 'class-validator';
 import { Gender } from '../../../shared/schemas';
 
 export class CreateStudentDto {
+  @IsString()
+  @IsNotEmpty()
+  @ApiProperty({
+    required: true,
+    type: String,
+    pattern: '^[a-zA-Z0-9]{8}$',
+  })
+  @Matches(/^[a-zA-Z0-9]{8}$/, {
+    message: 'Student code must be exactly 8 alphanumeric characters',
+  })
+  studentCode: string;
+
   @IsString()
   @IsNotEmpty()
   @ApiProperty()
