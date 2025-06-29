@@ -1,10 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { CreateSessionDto } from './dto/create-session.dto';
-import { UpdateSessionDto } from './dto/update-session.dto';
 import { InjectModel } from '@nestjs/mongoose';
-import { Session } from '../../shared/schemas';
-import { Model } from 'mongoose';
+import { DeleteResult, Model } from 'mongoose';
 import { RedisService } from '../../shared/redis/redis.service';
+import { Session } from '../../shared/schemas';
+import { UpdateSessionDto } from './dto/update-session.dto';
 
 @Injectable()
 export class SessionService {
@@ -47,7 +46,7 @@ export class SessionService {
     return session;
   }
 
-  removeManyByCourseId(courseId: string) {
-    return this.sessionModel.deleteMany({ courseId: courseId });
+  async removeManyByCourseId(courseId: string): Promise<DeleteResult> {
+    return await this.sessionModel.deleteMany({ courseId });
   }
 }

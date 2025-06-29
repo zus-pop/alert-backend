@@ -12,6 +12,7 @@ import { AttendanceModule } from './modules/attendance/attendance.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CourseModule } from './modules/course/course.module';
 import { EnrollmentModule } from './modules/enrollment/enrollment.module';
+import { QueueModule } from './modules/queue/queue.module';
 import { SemesterModule } from './modules/semester/semester.module';
 import { SessionModule } from './modules/session/session.module';
 import { StudentModule } from './modules/student/student.module';
@@ -56,6 +57,7 @@ import { RedisModule } from './shared/redis/redis.module';
     AiModule,
     FirebaseModule,
     AlertModule,
+    QueueModule,
   ],
   controllers: [],
   providers: [

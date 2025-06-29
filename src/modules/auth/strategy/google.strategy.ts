@@ -52,15 +52,15 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
       await student.save();
       return done(null, student);
     } catch (error) {
-      if (error instanceof NotFoundException) {
-        const newStudent = await this.studentService.create({
-          email,
-          firstName: profile._json.given_name as string,
-          lastName: profile._json.family_name as string,
-          image: profile._json.picture as string,
-        });
-        return done(null, newStudent);
-      }
+      //   if (error instanceof NotFoundException) {
+      //     const newStudent = await this.studentService.create({
+      //       email,
+      //       firstName: profile._json.given_name as string,
+      //       lastName: profile._json.family_name as string,
+      //       image: profile._json.picture as string,
+      //     });
+      //     return done(null, newStudent);
+      //   }
       return done(null, error);
     }
   }
