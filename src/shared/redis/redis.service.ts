@@ -2,7 +2,6 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Cache } from 'cache-manager';
 import crypto from 'crypto';
-import { COURSE_CACHE_KEY } from '../constant/constants';
 
 @Injectable()
 export class RedisService {

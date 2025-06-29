@@ -37,10 +37,14 @@ export class SessionService {
   }
 
   async update(id: string, updateSessionDto: UpdateSessionDto) {
-    const session = await this.findOne(id);
+    const session = await this.sessionModel.findByIdAndUpdate(
+      id,
+      updateSessionDto,
+      { new: true },
+    );
+    if (!session) throw new NotFoundException('Session not found');
 
-    Object.assign(session, updateSessionDto);
-    return session.save();
+    return session;
   }
 
   removeManyByCourseId(courseId: string) {

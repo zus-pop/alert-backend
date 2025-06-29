@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { Connection, isValidObjectId, Model, Types } from 'mongoose';
 import { ENROLLMENT_CACHE_KEY } from '../../shared/constant';
@@ -17,8 +21,27 @@ export class EnrollmentService {
     @InjectModel(Enrollment.name) private enrollmentModel: Model<Enrollment>,
     @InjectConnection() private readonly connection: Connection,
   ) {}
-  create(createEnrollmentDto: CreateEnrollmentDto) {
-    return this.enrollmentModel.create(createEnrollmentDto);
+  async create(createEnrollmentDto: CreateEnrollmentDto) {
+    if (
+      !isValidObjectId(createEnrollmentDto.studentId) ||
+      !isValidObjectId(createEnrollmentDto.courseId)
+    )
+      throw new WrongIdFormatException('Invalid student or course ID');
+
+    const session = await this.connection.startSession();
+    session.startTransaction();
+
+    try {
+      const enrollment = await this.enrollmentModel.create(createEnrollmentDto);
+      await this.clearCache();
+      await session.commitTransaction();
+      return enrollment;
+    } catch (error) {
+      await session.abortTransaction();
+      throw new BadRequestException(error.message);
+    } finally {
+      await session.endSession();
+    }
   }
 
   async clearCache() {

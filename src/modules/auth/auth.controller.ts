@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpException,
   HttpStatus,
+  Patch,
   Post,
   Query,
   Res,
@@ -58,7 +59,7 @@ export class AuthController {
     return this.authService.whoAmI(me);
   }
 
-  @Post('me')
+  @Patch('me')
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     type: ProfileDto,
