@@ -3,13 +3,13 @@ import {
   InternalServerErrorException,
   Logger,
 } from '@nestjs/common';
-import { ChatAgent } from './agents';
+import { AnalysisAgent } from './agents';
 import { AskDto } from './dto';
 
 @Injectable()
 export class AiService {
   private readonly logger = new Logger(AiService.name);
-  constructor(private readonly chatAgent: ChatAgent) {}
+  constructor(private readonly chatAgent: AnalysisAgent) {}
 
   async ask(askDto: AskDto, studentId: string) {
     try {

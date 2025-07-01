@@ -3,11 +3,11 @@ import { AiService } from './ai.service';
 import { AiController } from './ai.controller';
 import { GeminiProvider } from './providers/gemini.provider';
 import { StudentModule } from '../student/student.module';
-import { ChatAgent } from './agents';
+import { AnalysisAgent } from './agents';
 
 @Module({
   imports: [StudentModule],
   controllers: [AiController],
-  providers: [AiService, GeminiProvider, ChatAgent],
+  providers: [AiService, GeminiProvider, AnalysisAgent],
 })
 export class AiModule {}

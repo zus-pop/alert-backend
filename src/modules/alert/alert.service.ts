@@ -1,15 +1,15 @@
 import {
-    BadRequestException,
-    Injectable,
-    NotFoundException,
+  BadRequestException,
+  Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectModel } from '@nestjs/mongoose';
 import { isValidObjectId, Model, Types } from 'mongoose';
 import {
-    ALERT_CACHE_KEY,
-    ALERT_RESPONDED_EVENT,
-    NEW_ALERT_EVENT,
+  ALERT_CACHE_KEY,
+  ALERT_RESPONDED_EVENT,
+  NEW_ALERT_EVENT,
 } from '../../shared/constant';
 import { Pagination, SortCriteria } from '../../shared/dto';
 import { WrongIdFormatException } from '../../shared/exceptions';
@@ -17,6 +17,7 @@ import { RedisService } from '../../shared/redis/redis.service';
 import { Alert } from '../../shared/schemas';
 import { AlertQueries, CreateAlertDto, UpdateAlertDto } from './dto';
 import { NewAlertEvent, RespondedAlertEvent } from './events';
+import path from 'path';
 
 @Injectable()
 export class AlertService {
@@ -36,7 +37,10 @@ export class AlertService {
 
     try {
       const alert = await (
-        await this.alertModel.create(createAlertDto)
+        await this.alertModel.create({
+          ...createAlertDto,
+          enrollmentId: new Types.ObjectId(createAlertDto.enrollmentId),
+        })
       ).populate('enrollmentId');
       this.eventEmitter.emit(
         NEW_ALERT_EVENT,
@@ -72,41 +76,56 @@ export class AlertService {
       };
     }
 
+    let studentId: Types.ObjectId | undefined;
+    if (queries.studentId) {
+      studentId = new Types.ObjectId(queries.studentId);
+      delete queries.studentId;
+    }
+
     const page = pagination.page ?? 1;
     const limit = pagination.limit ?? 10;
     const skip = (page - 1) * limit;
 
-    const [alerts, total] = await Promise.all([
-      this.alertModel
-        .find(queries)
-        .populate({
-          path: 'enrollmentId',
-          populate: [
-            {
-              path: 'studentId',
-              select: 'firstName lastName email image',
-            },
-            {
-              path: 'courseId',
-              select: 'semesterId subjectId',
-              populate: [
-                {
-                  path: 'subjectId',
-                  select: 'subjectName subjectCode',
-                },
-                {
-                  path: 'semesterId',
-                  select: 'semesterName startDate endDate',
-                },
-              ],
-            },
-          ],
-        })
-        .sort({ [sortField]: sortOrder })
-        .skip(skip)
-        .limit(limit),
-      this.alertModel.countDocuments(queries),
-    ]);
+    // First get all alerts matching the base queries
+    const allAlerts = await this.alertModel
+      .find(queries)
+      .populate({
+        path: 'enrollmentId',
+        populate: [
+          {
+            path: 'studentId',
+            select: 'firstName lastName',
+          },
+          {
+            path: 'courseId',
+            select: 'semesterId subjectId',
+            populate: [
+              {
+                path: 'subjectId',
+                select: 'subjectName subjectCode',
+              },
+              {
+                path: 'semesterId',
+                select: 'semesterName startDate endDate',
+              },
+            ],
+          },
+        ],
+      })
+      .sort({ [sortField]: sortOrder });
+
+    // Filter by studentId in JavaScript if provided
+    const filteredAlerts = studentId
+      ? allAlerts.filter(
+          (alert) =>
+            alert.enrollmentId?.studentId?._id?.toString() ===
+            studentId.toString(),
+        )
+      : allAlerts;
+
+    // Apply pagination in JavaScript
+    const total = filteredAlerts.length;
+    const alerts = filteredAlerts.slice(skip, skip + limit);
 
     const response = {
       data: alerts,

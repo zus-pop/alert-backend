@@ -6,6 +6,15 @@ export class AlertQueries {
   @IsOptional()
   @ApiProperty({
     required: false,
+    description: 'Filter by student ID',
+    type: String,
+  })
+  studentId?: string; // ObjectId of Student
+
+  @IsString()
+  @IsOptional()
+  @ApiProperty({
+    required: false,
     description: 'Filter by alert title',
     type: String,
   })
