@@ -27,7 +27,7 @@ export class CreateAlertDto {
   @ApiProperty({
     required: true,
   })
-  enrollmentId: Types.ObjectId | Enrollment; // ObjectId of Enrollment
+  enrollmentId: string; // ObjectId of Enrollment
 
   @IsString()
   @IsNotEmpty()
