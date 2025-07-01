@@ -61,6 +61,13 @@ export class Alert {
     enum: ['LOW', 'MEDIUM', 'HIGH'],
   })
   riskLevel?: 'LOW' | 'MEDIUM' | 'HIGH';
+
+  @Prop({
+    required: false,
+    type: Boolean,
+    default: false,
+  })
+  isRead: boolean;
 }
 
 export const AlertSchema = SchemaFactory.createForClass(Alert);

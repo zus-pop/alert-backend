@@ -55,8 +55,9 @@ export class Student {
 
   @Prop({
     required: false,
+    type: [String],
   })
-  deviceTokens: [string];
+  deviceTokens: string[];
 
   @Prop({
     required: false,

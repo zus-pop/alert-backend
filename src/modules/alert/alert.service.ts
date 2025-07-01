@@ -1,22 +1,29 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { CreateAlertDto } from './dto/create-alert.dto';
-import { UpdateAlertDto } from './dto/update-alert.dto';
-import { InjectConnection, InjectModel } from '@nestjs/mongoose';
-import { Alert } from '../../shared/schemas';
-import { Connection, isValidObjectId, Model } from 'mongoose';
-import { RedisService } from '../../shared/redis/redis.service';
-import { ALERT_CACHE_KEY } from '../../shared/constant';
-import { WrongIdFormatException } from '../../shared/exceptions';
-import { AlertQueries } from './dto';
+import {
+    BadRequestException,
+    Injectable,
+    NotFoundException,
+} from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { InjectModel } from '@nestjs/mongoose';
+import { isValidObjectId, Model, Types } from 'mongoose';
+import {
+    ALERT_CACHE_KEY,
+    ALERT_RESPONDED_EVENT,
+    NEW_ALERT_EVENT,
+} from '../../shared/constant';
 import { Pagination, SortCriteria } from '../../shared/dto';
-import path from 'path';
+import { WrongIdFormatException } from '../../shared/exceptions';
+import { RedisService } from '../../shared/redis/redis.service';
+import { Alert } from '../../shared/schemas';
+import { AlertQueries, CreateAlertDto, UpdateAlertDto } from './dto';
+import { NewAlertEvent, RespondedAlertEvent } from './events';
 
 @Injectable()
 export class AlertService {
   constructor(
     @InjectModel(Alert.name) private alertModel: Model<Alert>,
+    private readonly eventEmitter: EventEmitter2,
     private readonly redisService: RedisService,
-    @InjectConnection() private readonly connection: Connection,
   ) {}
 
   async clearCache() {
@@ -27,18 +34,23 @@ export class AlertService {
     if (!isValidObjectId(createAlertDto.enrollmentId))
       throw new WrongIdFormatException('Invalid Enrollment ID format');
 
-    const session = await this.connection.startSession();
-    session.startTransaction();
     try {
-      const alert = await this.alertModel.create(createAlertDto);
-      session.commitTransaction();
-      this.clearCache();
+      const alert = await (
+        await this.alertModel.create(createAlertDto)
+      ).populate('enrollmentId');
+      this.eventEmitter.emit(
+        NEW_ALERT_EVENT,
+        new NewAlertEvent(
+          alert.enrollmentId.studentId as Types.ObjectId,
+          alert.title,
+          alert.content,
+        ),
+      );
+      await this.clearCache();
       return alert;
     } catch (error) {
-      session.abortTransaction();
-      throw error;
-    } finally {
-      session.endSession();
+      console.error('Error creating alert:', error);
+      throw new BadRequestException(error.message);
     }
   }
 
@@ -137,44 +149,48 @@ export class AlertService {
   async update(id: string, updateAlertDto: UpdateAlertDto) {
     if (!isValidObjectId(id)) throw new WrongIdFormatException();
 
-    const session = await this.connection.startSession();
-    session.startTransaction();
     try {
-      const alert = await this.alertModel.findByIdAndUpdate(
-        id,
-        updateAlertDto,
-        { new: true },
-      );
+      const alert = await this.alertModel
+        .findByIdAndUpdate(
+          id,
+          {
+            ...updateAlertDto,
+            status: 'RESPONDED',
+          },
+          { new: true },
+        )
+        .populate('enrollmentId');
       if (!alert) throw new NotFoundException(`Alert with id ${id} not found`);
 
+      this.eventEmitter.emit(
+        ALERT_RESPONDED_EVENT,
+        new RespondedAlertEvent(
+          alert.enrollmentId.studentId as Types.ObjectId,
+          alert.title,
+          alert.content,
+          alert.supervisorResponse,
+        ),
+      );
       await this.clearCache();
-      await session.commitTransaction();
       return alert;
     } catch (error) {
-      await session.abortTransaction();
       throw error;
-    } finally {
-      await session.endSession();
     }
   }
 
   async remove(id: string) {
     if (!isValidObjectId(id)) throw new WrongIdFormatException();
 
-    const session = await this.connection.startSession();
-    session.startTransaction();
     try {
       const result = await this.alertModel.findByIdAndDelete(id);
       if (!result) throw new NotFoundException(`Alert with id ${id} not found`);
 
       this.clearCache();
-      session.commitTransaction();
+
       return result;
     } catch (error) {
-      session.abortTransaction();
       throw error;
     } finally {
-      session.endSession();
     }
   }
 }

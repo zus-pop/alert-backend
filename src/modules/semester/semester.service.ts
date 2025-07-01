@@ -19,7 +19,6 @@ export class SemesterService {
   constructor(
     private readonly redisService: RedisService,
     @InjectModel(Semester.name) private semesterModel: Model<Semester>,
-    @InjectConnection() private readonly connection: Connection,
   ) {}
 
   async clearCache() {
@@ -27,19 +26,12 @@ export class SemesterService {
   }
 
   async create(createSemesterDto: CreateSemesterDto) {
-    const session = await this.connection.startSession();
-    session.startTransaction();
-
     try {
       const semester = await this.semesterModel.create(createSemesterDto);
       await this.clearCache();
-      await session.commitTransaction();
       return semester;
     } catch (error) {
-      await session.abortTransaction();
       throw new BadRequestException(error.message);
-    } finally {
-      await session.endSession();
     }
   }
 
@@ -90,9 +82,6 @@ export class SemesterService {
   }
 
   async update(id: string, updateSemesterDto: UpdateSemesterDto) {
-    const session = await this.connection.startSession();
-    session.startTransaction();
-
     if (!isValidObjectId(id)) throw new WrongIdFormatException();
 
     try {
@@ -105,32 +94,21 @@ export class SemesterService {
       if (!semester) throw new BadRequestException('Semester not found');
 
       await this.clearCache();
-      await session.commitTransaction();
       return semester;
     } catch (error) {
-      await session.abortTransaction();
       throw new BadRequestException(error.message);
-    } finally {
-      await session.endSession();
     }
   }
 
   async remove(id: string) {
-    const session = await this.connection.startSession();
-    session.startTransaction();
-
     if (!isValidObjectId(id)) throw new WrongIdFormatException();
 
     try {
       const semester = await this.semesterModel.findByIdAndDelete(id);
       await this.clearCache();
-      await session.commitTransaction();
       return semester;
     } catch (error) {
-      await session.abortTransaction();
       throw new BadRequestException(error.message);
-    } finally {
-      await session.endSession();
     }
   }
 }

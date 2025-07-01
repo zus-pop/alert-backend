@@ -14,6 +14,7 @@ import { EnrollmentService } from '../enrollment/enrollment.service';
 import { CreateStudentDto, StudentQueries, UpdateStudentDto } from './dto';
 import { STUDENT_CACHE_KEY } from '../../shared/constant';
 import { WrongIdFormatException } from '../../shared/exceptions';
+import { AttendanceService } from '../attendance/attendance.service';
 
 @Injectable()
 export class StudentService {
@@ -23,7 +24,7 @@ export class StudentService {
     @InjectModel(Student.name) private studentModel: Model<Student>,
     private readonly redisService: RedisService,
     private readonly enrollmentService: EnrollmentService,
-    @InjectConnection() private readonly connection: Connection,
+    private readonly attendanceService: AttendanceService,
   ) {}
 
   async clearCache() {
@@ -95,16 +96,34 @@ export class StudentService {
     const student = await this.findById(id);
 
     // Get all enrollments for this student
-    const result = await this.enrollmentService.findByStudentId(
+    const enrollments = await this.enrollmentService.findByStudentId(
       student._id,
       { sortBy: 'updatedAt', order: 'desc' },
       { page: 1, limit: 100 },
     );
 
+    const enrollmentWithAttendances = await Promise.all(
+      enrollments.data.map(async (enrollment) => {
+        const attendances = await this.attendanceService.findByEnrollmentId(
+          enrollment._id,
+        );
+        return {
+          ...enrollment.toObject(),
+          attendances: attendances,
+          attendanceSummary: {
+            total: attendances.length,
+            attended: attendances.filter((a) => a.status === 'Attended').length,
+            absent: attendances.filter((a) => a.status === 'Absent').length,
+            notYet: attendances.filter((a) => a.status === 'Not Yet').length,
+          },
+        };
+      }),
+    );
+
     return {
       studentInfo: student,
-      enrollments: result.data,
-      totalEnrollments: result.totalItems,
+      enrollments: enrollmentWithAttendances,
+      totalEnrollments: enrollments.totalItems,
       profileCompleteness: this.calculateProfileCompleteness(student),
     };
   }
@@ -164,9 +183,6 @@ export class StudentService {
   }
 
   async create(createStudentDto: CreateStudentDto) {
-    const session = await this.connection.startSession();
-    session.startTransaction();
-
     try {
       const student = await this.studentModel.findOne({
         email: createStudentDto.email,
@@ -174,20 +190,13 @@ export class StudentService {
 
       if (student) throw new BadRequestException('Email existed');
       await this.clearCache();
-      await session.commitTransaction();
       return await this.studentModel.create(createStudentDto);
     } catch (error) {
-      await session.abortTransaction();
       throw new BadRequestException(error.message);
-    } finally {
-      await session.endSession();
     }
   }
 
   async update(id: string, updateStudentDto: UpdateStudentDto) {
-    const session = await this.connection.startSession();
-    session.startTransaction();
-
     try {
       const student = await this.studentModel
         .where({ isDeleted: false })
@@ -196,18 +205,12 @@ export class StudentService {
       await this.clearCache();
       return student;
     } catch (error) {
-      await session.abortTransaction();
       throw new BadRequestException(error.message);
-    } finally {
-      await session.endSession();
     }
   }
 
   async remove(id: string) {
     if (!isValidObjectId(id)) throw new WrongIdFormatException();
-
-    const session = await this.connection.startSession();
-    session.startTransaction();
 
     try {
       const result = await this.studentModel
@@ -222,21 +225,14 @@ export class StudentService {
         throw new NotFoundException('Student not found!');
       }
       await this.clearCache();
-      await session.commitTransaction();
       return result;
     } catch (error) {
-      await session.abortTransaction();
       throw new BadRequestException(error.message);
-    } finally {
-      session.endSession();
     }
   }
 
   async restore(id: string) {
     if (!isValidObjectId(id)) throw new WrongIdFormatException();
-
-    const session = await this.connection.startSession();
-    session.startTransaction();
 
     try {
       const result = await this.studentModel
@@ -251,13 +247,9 @@ export class StudentService {
         throw new NotFoundException('Student not found!');
       }
       await this.clearCache();
-      await session.commitTransaction();
       return result;
     } catch (error) {
-      await session.abortTransaction();
       throw new BadRequestException(error.message);
-    } finally {
-      session.endSession();
     }
   }
 }

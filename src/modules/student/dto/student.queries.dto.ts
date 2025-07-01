@@ -11,15 +11,6 @@ import { Gender } from '../../../shared/schemas/student.schema';
 export class StudentQueries {
   @IsString()
   @IsOptional()
-  @ApiProperty({
-    required: false,
-    type: String,
-    description: 'MongoDB ObjectId of the student',
-  })
-  _id?: string;
-
-  @IsString()
-  @IsOptional()
   @Matches(/^[a-zA-Z0-9]{8}$/, {
     message: 'Student code must be exactly 8 alphanumeric characters',
   })

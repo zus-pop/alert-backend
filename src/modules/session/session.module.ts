@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Session, SessionSchema } from '../../shared/schemas';
 import { SessionService } from './session.service';
+import { SessionController } from './session.controller';
 
 @Module({
   imports: [
@@ -12,7 +13,7 @@ import { SessionService } from './session.service';
       },
     ]),
   ],
-  controllers: [],
+  controllers: [SessionController],
   providers: [SessionService],
   exports: [SessionService],
 })

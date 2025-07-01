@@ -47,6 +47,6 @@ export class EnrollmentController {
 
   @Delete(':id')
   remove(@Param('id') id: string) {
-    return this.enrollmentService.remove(+id);
+    return this.enrollmentService.remove(id);
   }
 }

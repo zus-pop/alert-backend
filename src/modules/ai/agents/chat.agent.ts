@@ -68,6 +68,10 @@ export class ChatAgent {
       const studentData = await this.studentService.retrieveStudentDataById(
         state.studentId,
       );
+      console.log(
+        'Retrieved student data:',
+        JSON.stringify(studentData, null, 2),
+      );
       return {
         ...state,
         studentInfo: JSON.stringify(studentData),

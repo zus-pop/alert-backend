@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsOptional, IsString } from 'class-validator';
+import { IsIn, IsOptional, IsString } from 'class-validator';
 import { Types } from 'mongoose';
 
 export class EnrollmentQueries {
@@ -18,4 +18,14 @@ export class EnrollmentQueries {
     type: String,
   })
   courseId?: string;
+
+  @IsString()
+  @IsOptional()
+  @IsIn(['IN PROGRESS', 'NOT PASSED', 'PASSED'])
+  @ApiProperty({
+    required: false,
+    type: String,
+    enum: ['IN PROGRESS', 'NOT PASSED', 'PASSED'],
+  })
+  status?: 'IN PROGRESS' | 'NOT PASSED' | 'PASSED';
 }

@@ -1,3 +1,4 @@
+export const ATTENDANCE_CACHE_KEY = '/api/attendances';
 export const SESSION_CACHE_KEY = '/api/sessions';
 export const ALERT_CACHE_KEY = '/api/alerts';
 export const ENROLLMENT_CACHE_KEY = '/api/enrollments';

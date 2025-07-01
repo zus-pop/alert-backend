@@ -9,17 +9,21 @@ import { ENROLLMENT_CACHE_KEY } from '../../shared/constant';
 import { Pagination, SortCriteria } from '../../shared/dto';
 import { WrongIdFormatException } from '../../shared/exceptions';
 import { RedisService } from '../../shared/redis/redis.service';
-import { Enrollment } from '../../shared/schemas';
+import { Enrollment, GradeDocument } from '../../shared/schemas';
 import { EnrollmentQueries } from './dto';
 import { CreateEnrollmentDto } from './dto/create-enrollment.dto';
 import { UpdateEnrollmentDto } from './dto/update-enrollment.dto';
+import { SessionService } from '../session/session.service';
+import { AttendanceService } from '../attendance/attendance.service';
 
 @Injectable()
 export class EnrollmentService {
   constructor(
     private readonly redisService: RedisService,
     @InjectModel(Enrollment.name) private enrollmentModel: Model<Enrollment>,
-    @InjectConnection() private readonly connection: Connection,
+
+    private readonly attendanceService: AttendanceService,
+    private readonly sessionService: SessionService,
   ) {}
   async create(createEnrollmentDto: CreateEnrollmentDto) {
     if (
@@ -28,19 +32,19 @@ export class EnrollmentService {
     )
       throw new WrongIdFormatException('Invalid student or course ID');
 
-    const session = await this.connection.startSession();
-    session.startTransaction();
-
     try {
       const enrollment = await this.enrollmentModel.create(createEnrollmentDto);
+      const sessions = await this.sessionService.findAllByCourseId(
+        enrollment.courseId.toString(),
+      );
+      await this.attendanceService.createByEnrollmentIdAndSessionId(
+        enrollment._id,
+        sessions.map((session) => session._id),
+      );
       await this.clearCache();
-      await session.commitTransaction();
       return enrollment;
     } catch (error) {
-      await session.abortTransaction();
       throw new BadRequestException(error.message);
-    } finally {
-      await session.endSession();
     }
   }
 
@@ -132,6 +136,8 @@ export class EnrollmentService {
   }
 
   async findOne(id: string) {
+    if (!isValidObjectId(id)) throw new WrongIdFormatException();
+
     const enrollment = await this.enrollmentModel
       .findById(id)
       .populate('studentId')
@@ -145,9 +151,6 @@ export class EnrollmentService {
   async update(id: string, updateEnrollmentDto: UpdateEnrollmentDto) {
     if (!isValidObjectId(id)) throw new WrongIdFormatException();
 
-    const session = await this.connection.startSession();
-    session.startTransaction();
-
     try {
       const enrollment = await this.enrollmentModel.findByIdAndUpdate(
         id,
@@ -158,32 +161,65 @@ export class EnrollmentService {
       );
 
       if (!enrollment) throw new NotFoundException('Enrollment not found');
+
+      if (enrollment.grade.length > 0) {
+        const types: GradeDocument['type'][] = [
+          'progress test',
+          'assignment',
+          'practical exam',
+          'final exam',
+        ];
+        const hasAllGrade = types.every((type) =>
+          enrollment.grade.some(
+            (grade) => grade.type === type && grade.score !== null,
+          ),
+        );
+
+        if (hasAllGrade) {
+          // Calculate final grade using weighted average
+          const progressTest = enrollment.grade.find(
+            (g) => g.type === 'progress test',
+          );
+          const assignment = enrollment.grade.find(
+            (g) => g.type === 'assignment',
+          );
+          const practicalExam = enrollment.grade.find(
+            (g) => g.type === 'practical exam',
+          );
+          const finalExam = enrollment.grade.find(
+            (g) => g.type === 'final exam',
+          );
+
+          const finalGrade =
+            progressTest!.score * progressTest!.weight +
+            assignment!.score * assignment!.weight +
+            practicalExam!.score * practicalExam!.weight +
+            finalExam!.score * finalExam!.weight;
+
+          enrollment.finalGrade = finalGrade;
+          enrollment.status = finalGrade >= 5.0 ? 'PASSED' : 'NOT PASSED';
+
+          await enrollment.save();
+        }
+      }
+
       await this.clearCache();
-      await session.commitTransaction();
       return enrollment;
     } catch (error) {
-      await session.abortTransaction();
       throw new NotFoundException(error.message);
-    } finally {
-      await session.endSession();
     }
   }
 
-  async remove(id: number) {
+  async remove(id: string) {
     if (!isValidObjectId(id)) throw new WrongIdFormatException();
-    const session = await this.connection.startSession();
-    session.startTransaction();
     try {
       const enrollment = await this.enrollmentModel.findByIdAndDelete(id);
       if (!enrollment) throw new NotFoundException('Enrollment not found');
+      await this.attendanceService.deleteMany(enrollment._id);
       await this.clearCache();
-      await session.commitTransaction();
       return enrollment;
     } catch (error) {
-      await session.abortTransaction();
       throw new NotFoundException(error.message);
-    } finally {
-      await session.endSession();
     }
   }
 }
