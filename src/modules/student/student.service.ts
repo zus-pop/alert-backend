@@ -1,20 +1,19 @@
 import {
-  BadRequestException,
-  Injectable,
-  Logger,
-  NotFoundException,
+    BadRequestException,
+    Injectable,
+    Logger,
+    NotFoundException,
 } from '@nestjs/common';
-import { InjectConnection, InjectModel } from '@nestjs/mongoose';
-import { Connection, isValidObjectId, Model, Types } from 'mongoose';
+import { InjectModel } from '@nestjs/mongoose';
+import { isValidObjectId, Model, Types } from 'mongoose';
+import { STUDENT_CACHE_KEY } from '../../shared/constant';
 import { Pagination, SortCriteria } from '../../shared/dto';
+import { WrongIdFormatException } from '../../shared/exceptions';
 import { RedisService } from '../../shared/redis/redis.service';
 import { Student, StudentDocument } from '../../shared/schemas';
-import { EnrollmentQueries } from '../enrollment/dto';
+import { AttendanceService } from '../attendance/attendance.service';
 import { EnrollmentService } from '../enrollment/enrollment.service';
 import { CreateStudentDto, StudentQueries, UpdateStudentDto } from './dto';
-import { STUDENT_CACHE_KEY } from '../../shared/constant';
-import { WrongIdFormatException } from '../../shared/exceptions';
-import { AttendanceService } from '../attendance/attendance.service';
 
 @Injectable()
 export class StudentService {
@@ -179,6 +178,27 @@ export class StudentService {
       );
 
     return enrollment;
+  }
+
+  async findAttendancesByEnrollmentIdAndStudentId(
+    studentId: Types.ObjectId,
+    enrollmentId: Types.ObjectId,
+  ) {
+    await this.findById(studentId.toString());
+
+    const enrollment = await this.enrollmentService.findOne(
+      enrollmentId.toString(),
+    );
+
+    if (!enrollment?.studentId._id.equals(studentId))
+      throw new BadRequestException(
+        'This enrollment does not belong to this student',
+      );
+
+    const attendances = await this.attendanceService.findByEnrollmentId(
+      enrollment._id,
+    );
+    return attendances;
   }
 
   async findByEmail(email: string) {

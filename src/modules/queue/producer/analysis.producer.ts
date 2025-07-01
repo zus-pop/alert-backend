@@ -12,7 +12,7 @@ export class AnalysisProducer {
     private studentService: StudentService,
   ) {}
 
-  @Cron(CronExpression.EVERY_HOUR)
+  @Cron(CronExpression.EVERY_DAY_AT_8AM)
   async retrieveEnrollmentInfo() {
     const studentIds = await this.studentService.getAllStudentIds();
     const enrollmentInfo = await Promise.all(
@@ -25,9 +25,16 @@ export class AnalysisProducer {
         this.logger.log(
           `Adding enrollment info for student ${info.studentInfo._id} to the analysis queue`,
         );
-        this.analysisQueue.add(ANALYSIS_QUEUE, {
-          enrollmentInfo: JSON.stringify(info.enrollments),
-        });
+        this.analysisQueue.add(
+          ANALYSIS_QUEUE,
+          {
+            enrollmentInfo: JSON.stringify(info.enrollments),
+          },
+          {
+            removeOnComplete: true,
+            removeOnFail: true,
+          },
+        );
       }
     });
   }

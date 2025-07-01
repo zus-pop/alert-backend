@@ -14,7 +14,6 @@ import { ApiQuery, ApiTags } from '@nestjs/swagger';
 import { Types } from 'mongoose';
 import { Pagination } from '../../shared/dto/pagination.dto';
 import { SortCriteria } from '../../shared/dto/sort.dto';
-import { EnrollmentQueries } from '../enrollment/dto';
 import { CreateStudentDto, UpdateStudentDto } from './dto';
 import { StudentQueries } from './dto/student.queries.dto';
 import { StudentService } from './student.service';
@@ -73,7 +72,7 @@ export class StudentController {
     @Param('studentId') studentId: string,
     @Param('enrollmentId') enrollmentId: string,
   ) {
-    return this.studentService.findEnrollmentByEnrollmentIdAndStudentId(
+    return this.studentService.findAttendancesByEnrollmentIdAndStudentId(
       new Types.ObjectId(studentId),
       new Types.ObjectId(enrollmentId),
     );
