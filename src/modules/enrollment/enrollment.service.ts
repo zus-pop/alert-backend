@@ -33,7 +33,11 @@ export class EnrollmentService {
       throw new WrongIdFormatException('Invalid student or course ID');
 
     try {
-      const enrollment = await this.enrollmentModel.create(createEnrollmentDto);
+      const enrollment = await this.enrollmentModel.create({
+        ...createEnrollmentDto,
+        studentId: new Types.ObjectId(createEnrollmentDto.studentId),
+        courseId: new Types.ObjectId(createEnrollmentDto.courseId),
+      });
       const sessions = await this.sessionService.findAllByCourseId(
         enrollment.courseId.toString(),
       );
@@ -90,6 +94,7 @@ export class EnrollmentService {
 
   async findByStudentId(
     studentId: Types.ObjectId,
+    status: string,
     sortCriteria: SortCriteria,
     pagination: Pagination,
   ) {
@@ -107,6 +112,7 @@ export class EnrollmentService {
       this.enrollmentModel
         .find({
           studentId: studentId,
+          ...(status ? { status: status } : {}),
         })
         .populate({
           path: 'courseId',
@@ -133,7 +139,45 @@ export class EnrollmentService {
       totalPage: Math.ceil(total / limit),
     };
 
-    return response;
+    const group = await this.groupByEnrollmentStatus(studentId);
+
+    return {
+      ...response,
+      groupByEnrollmentStatus: group,
+    };
+  }
+
+  async groupByEnrollmentStatus(studentId: Types.ObjectId) {
+    const result = await this.enrollmentModel.aggregate([
+      {
+        $match: { studentId: studentId },
+      },
+      {
+        $group: {
+          _id: '$status',
+          count: { $sum: 1 },
+        },
+      },
+      {
+        $project: {
+          status: '$_id',
+          count: 1,
+          _id: 0,
+        },
+      },
+    ]);
+
+    // Ensure all status types are included with default count of 0
+    const statusTypes = ['IN PROGRESS', 'NOT PASSED', 'PASSED'];
+    const completeResult = statusTypes.map((status) => {
+      const found = result.find((item) => item.status === status);
+      return {
+        status,
+        count: found ? found.count : 0,
+      };
+    });
+
+    return completeResult;
   }
 
   async findOne(id: string) {
