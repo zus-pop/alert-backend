@@ -25,9 +25,16 @@ export class AnalysisProducer {
         this.logger.log(
           `Adding enrollment info for student ${info.studentInfo._id} to the analysis queue`,
         );
-        this.analysisQueue.add(ANALYSIS_QUEUE, {
-          enrollmentInfo: JSON.stringify(info.enrollments),
-        });
+        this.analysisQueue.add(
+          ANALYSIS_QUEUE,
+          {
+            enrollmentInfo: JSON.stringify(info.enrollments),
+          },
+          {
+            removeOnComplete: true,
+            removeOnFail: true,
+          },
+        );
       }
     });
   }
