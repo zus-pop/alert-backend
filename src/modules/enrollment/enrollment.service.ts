@@ -270,9 +270,10 @@ export class EnrollmentService {
 
           enrollment.finalGrade = finalGrade;
           enrollment.status = finalGrade >= 5.0 ? 'PASSED' : 'NOT PASSED';
-
-          await enrollment.save();
+        } else {
+          enrollment.status = 'IN PROGRESS';
         }
+        await enrollment.save();
       }
 
       await this.clearCache();

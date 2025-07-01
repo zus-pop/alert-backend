@@ -77,6 +77,11 @@ export class AttendanceService {
     const limit = pagination.limit ?? 10;
     const skip = (page - 1) * limit;
 
+    if (queries.enrollmentId)
+        queries.enrollmentId = new Types.ObjectId(queries.enrollmentId);
+    if (queries.sessionId)
+        queries.sessionId = new Types.ObjectId(queries.sessionId);
+
     const [attendances, total] = await Promise.all([
       this.attendanceModel
         .find(queries)

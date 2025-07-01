@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsOptional, IsString } from 'class-validator';
+import { Types } from 'mongoose';
 
 export class AttendanceQueries {
   @IsString()
@@ -8,7 +9,7 @@ export class AttendanceQueries {
     required: false,
     type: String,
   })
-  enrollmentId?: string;
+  enrollmentId?: string | Types.ObjectId;
 
   @IsString()
   @IsOptional()
@@ -16,5 +17,5 @@ export class AttendanceQueries {
     required: false,
     type: String,
   })
-  sessionId?: string;
+  sessionId?: string | Types.ObjectId;
 }
