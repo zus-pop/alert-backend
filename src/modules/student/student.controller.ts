@@ -73,7 +73,7 @@ export class StudentController {
     @Param('studentId') studentId: string,
     @Param('enrollmentId') enrollmentId: string,
   ) {
-    return this.studentService.findEnrollmentByEnrollmentIdAndStudentId(
+    return this.studentService.findAttendancesByEnrollmentIdAndStudentId(
       new Types.ObjectId(studentId),
       new Types.ObjectId(enrollmentId),
     );

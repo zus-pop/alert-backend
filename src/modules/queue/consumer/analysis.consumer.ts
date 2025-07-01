@@ -2,7 +2,6 @@ import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { ANALYSIS_QUEUE } from '../../../shared/constant';
-import { AnalysisAgent } from '../../ai/agents';
 import { AiService } from '../../ai/ai.service';
 import { AlertService } from '../../alert/alert.service';
 

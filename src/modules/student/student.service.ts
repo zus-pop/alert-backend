@@ -181,6 +181,27 @@ export class StudentService {
     return enrollment;
   }
 
+  async findAttendancesByEnrollmentIdAndStudentId(
+    studentId: Types.ObjectId,
+    enrollmentId: Types.ObjectId,
+  ) {
+    await this.findById(studentId.toString());
+
+    const enrollment = await this.enrollmentService.findOne(
+      enrollmentId.toString(),
+    );
+
+    if (!enrollment?.studentId._id.equals(studentId))
+      throw new BadRequestException(
+        'This enrollment does not belong to this student',
+      );
+
+    const attendances = await this.attendanceService.findByEnrollmentId(
+      enrollment._id,
+    );
+    return attendances;
+  }
+
   async findByEmail(email: string) {
     const student = await this.studentModel
       .where({ isDeleted: false })
