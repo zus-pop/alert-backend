@@ -12,26 +12,23 @@ export class AnalysisProducer {
     private studentService: StudentService,
   ) {}
 
-  //   @Cron(CronExpression.EVERY_10_SECONDS)
+  @Cron(CronExpression.EVERY_HOUR)
   async retrieveEnrollmentInfo() {
-    // const studentIds = await this.studentService.getAllStudentIds();
-    // const enrollmentInfo = await Promise.all(
-    //   studentIds.map(async (id) =>
-    //     this.studentService.retrieveStudentDataById(id._id.toString()),
-    //   ),
-    // );
-    // enrollmentInfo.forEach((info) => {
-    //   if (info.enrollments.length > 0) {
-    //     this.logger.log(
-    //       `Adding enrollment info for student ${info.studentInfo._id} to the analysis queue`,
-    //     );
-    //     this.analysisQueue.add(ANALYSIS_QUEUE, {
-    //       enrollmentInfo: JSON.stringify(info.enrollments),
-    //     });
-    //   }
-    // });
-    this.analysisQueue.add(ANALYSIS_QUEUE, {
-      enrollmentInfo: 'Sample enrollment info for analysis',
+    const studentIds = await this.studentService.getAllStudentIds();
+    const enrollmentInfo = await Promise.all(
+      studentIds.map(async (id) =>
+        this.studentService.retrieveStudentDataById(id._id.toString()),
+      ),
+    );
+    enrollmentInfo.forEach((info) => {
+      if (info.enrollments.length > 0) {
+        this.logger.log(
+          `Adding enrollment info for student ${info.studentInfo._id} to the analysis queue`,
+        );
+        this.analysisQueue.add(ANALYSIS_QUEUE, {
+          enrollmentInfo: JSON.stringify(info.enrollments),
+        });
+      }
     });
   }
 }

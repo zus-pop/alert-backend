@@ -20,11 +20,17 @@ const ResponseFormatter = z.object({
     .describe(
       'Mức độ rủi ro dựa trên phân tích của AI về sinh viên đối với khoá học đó',
     ),
+  shouldGetAlert: z
+    .boolean()
+    .describe(
+      'Cho biết AI có khuyến nghị gửi cảnh báo cho sinh viên hay không',
+    ),
 });
 
 const StateAnnotation = Annotation.Root({
   message: Annotation<BaseMessage>,
   enrollmentInfo: Annotation<string>,
+  result: Annotation<typeof ResponseFormatter>,
 });
 
 @Injectable()
@@ -49,7 +55,7 @@ export class AnalysisAgent {
       });
       const llmWithStructure = this.llm.withStructuredOutput(ResponseFormatter);
       const response = await llmWithStructure.invoke(prompt);
-      return response;
+      return { result: response };
     };
 
     const workflow = new StateGraph(StateAnnotation)
@@ -60,11 +66,12 @@ export class AnalysisAgent {
     this.chat = workflow.compile();
   }
 
-  async ask(askDto: AskDto, enrollmentInfo: string) {
+  async analyze(askDto: AskDto, enrollmentInfo: string) {
     const response = await this.chat.invoke({
       message: new HumanMessage(askDto.question),
-      enrolmentInfo: enrollmentInfo,
+      enrollmentInfo: enrollmentInfo,
     });
-    return response;
+
+    return response.result as typeof ResponseFormatter._type;
   }
 }

@@ -15,5 +15,6 @@ import { Alert, AlertSchema } from '../../shared/schemas';
   ],
   controllers: [AlertController],
   providers: [AlertService],
+  exports: [AlertService],
 })
 export class AlertModule {}

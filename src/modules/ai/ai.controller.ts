@@ -1,18 +1,17 @@
 import {
-  Body,
-  Controller,
-  HttpCode,
-  HttpStatus,
-  Post,
-  UseGuards,
+    Body,
+    Controller,
+    HttpCode,
+    HttpStatus,
+    Post,
+    UseGuards,
 } from '@nestjs/common';
-import { StudentDocument } from '../../shared/schemas';
+import { ApiBearerAuth } from '@nestjs/swagger';
 import { WhoAmI } from '../auth/decorators';
+import { PayloadDto } from '../auth/dto';
 import { AccessTokenAuthGuard } from '../auth/guards';
 import { AiService } from './ai.service';
 import { AskDto } from './dto';
-import { ApiBearerAuth } from '@nestjs/swagger';
-import { PayloadDto } from '../auth/dto';
 
 @Controller('ai')
 export class AiController {
