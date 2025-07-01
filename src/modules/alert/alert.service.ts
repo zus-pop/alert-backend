@@ -1,15 +1,15 @@
 import {
-    BadRequestException,
-    Injectable,
-    NotFoundException,
+  BadRequestException,
+  Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectModel } from '@nestjs/mongoose';
 import { isValidObjectId, Model, Types } from 'mongoose';
 import {
-    ALERT_CACHE_KEY,
-    ALERT_RESPONDED_EVENT,
-    NEW_ALERT_EVENT,
+  ALERT_CACHE_KEY,
+  ALERT_RESPONDED_EVENT,
+  NEW_ALERT_EVENT,
 } from '../../shared/constant';
 import { Pagination, SortCriteria } from '../../shared/dto';
 import { WrongIdFormatException } from '../../shared/exceptions';
