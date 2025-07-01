@@ -31,6 +31,15 @@ export class StudentService {
     await this.redisService.clearCache(STUDENT_CACHE_KEY);
   }
 
+  async getAllStudentIds() {
+    const studentIds = await this.studentModel
+      .where({ isDeleted: false })
+      .find()
+      .select('_id');
+
+    return studentIds;
+  }
+
   async find(
     queries: StudentQueries,
     sortCriteria: SortCriteria,
@@ -80,7 +89,10 @@ export class StudentService {
   }
 
   async findById(id: string) {
-    if (!isValidObjectId(id)) throw new WrongIdFormatException();
+    if (!isValidObjectId(id)) {
+      this.logger.error('Finding student by ID:', id);
+      throw new WrongIdFormatException();
+    }
 
     const student = await this.studentModel
       .where({ isDeleted: false })
@@ -96,10 +108,8 @@ export class StudentService {
     const student = await this.findById(id);
 
     // Get all enrollments for this student
-    const enrollments = await this.enrollmentService.findByStudentId(
+    const enrollments = await this.enrollmentService.findAllByStudentId(
       student._id,
-      { sortBy: 'updatedAt', order: 'desc' },
-      { page: 1, limit: 100 },
     );
 
     const enrollmentWithAttendances = await Promise.all(
@@ -124,7 +134,6 @@ export class StudentService {
       studentInfo: student,
       enrollments: enrollmentWithAttendances,
       totalEnrollments: enrollments.totalItems,
-      profileCompleteness: this.calculateProfileCompleteness(student),
     };
   }
 

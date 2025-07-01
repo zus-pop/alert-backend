@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { AnalysisConsumer } from './consumer';
 import { AnalysisProducer } from './producer';
 import { ANALYSIS_QUEUE } from '../../shared/constant';
+import { StudentModule } from '../student/student.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { ANALYSIS_QUEUE } from '../../shared/constant';
     BullModule.registerQueue({
       name: ANALYSIS_QUEUE,
     }),
+    StudentModule,
   ],
   controllers: [],
   providers: [AnalysisConsumer, AnalysisProducer],

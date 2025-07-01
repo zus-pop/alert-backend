@@ -73,6 +73,7 @@ export class EnrollmentService {
     const [enrollments, total] = await Promise.all([
       this.enrollmentModel
         .find(queries)
+        .populate('studentId', 'firstName lastName email image')
         .sort({ [sortField]: sortOrder })
         .skip(skip)
         .limit(limit),
@@ -146,6 +147,33 @@ export class EnrollmentService {
     if (!enrollment) throw new NotFoundException('Enrollment not found');
 
     return enrollment;
+  }
+
+  async findAllByStudentId(studentId: Types.ObjectId) {
+    if (!isValidObjectId(studentId)) throw new WrongIdFormatException();
+
+    const enrollments = await this.enrollmentModel
+      .find({
+        studentId: studentId,
+      })
+      .populate({
+        path: 'courseId',
+        populate: [
+          {
+            path: 'subjectId',
+            select: 'subjectCode subjectName',
+          },
+          {
+            path: 'semesterId',
+            select: 'semesterName startDate endDate',
+          },
+        ],
+      });
+
+    return {
+      data: enrollments,
+      totalItems: enrollments.length,
+    };
   }
 
   async update(id: string, updateEnrollmentDto: UpdateEnrollmentDto) {
