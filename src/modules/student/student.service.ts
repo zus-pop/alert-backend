@@ -14,6 +14,7 @@ import { Student, StudentDocument } from '../../shared/schemas';
 import { AttendanceService } from '../attendance/attendance.service';
 import { EnrollmentService } from '../enrollment/enrollment.service';
 import { CreateStudentDto, StudentQueries, UpdateStudentDto } from './dto';
+import { EnrollmentQueries } from '../enrollment/dto';
 
 @Injectable()
 export class StudentService {
@@ -121,9 +122,9 @@ export class StudentService {
           attendances: attendances,
           attendanceSummary: {
             total: attendances.length,
-            attended: attendances.filter((a) => a.status === 'Attended').length,
-            absent: attendances.filter((a) => a.status === 'Absent').length,
-            notYet: attendances.filter((a) => a.status === 'Not Yet').length,
+            attended: attendances.filter((a) => a.status === 'ATTENDED').length,
+            absent: attendances.filter((a) => a.status === 'ABSENT').length,
+            notYet: attendances.filter((a) => a.status === 'NOT YET').length,
           },
         };
       }),
@@ -150,6 +151,7 @@ export class StudentService {
 
   async findEnrollmentsByStudentId(
     id: string,
+    status: string,
     sortCriteria: SortCriteria,
     pagination: Pagination,
   ) {
@@ -157,6 +159,7 @@ export class StudentService {
 
     return await this.enrollmentService.findByStudentId(
       new Types.ObjectId(id),
+      status,
       sortCriteria,
       pagination,
     );

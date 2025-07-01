@@ -14,7 +14,11 @@ const ResponseFormatter = z.object({
   title: z
     .string()
     .describe('Tiêu đề của bản ghi thông báo với nội dung của AI'),
-  content: z.string().describe('Nội dung phân tích của AI'),
+  content: z
+    .string()
+    .describe(
+      'Nội dung phân tích của AI về sinh viên ngắn gọn không quá 300 tokens',
+    ),
   riskLevel: z
     .enum(['LOW', 'MEDIUM', 'HIGH'])
     .describe(

@@ -17,6 +17,7 @@ import { SortCriteria } from '../../shared/dto/sort.dto';
 import { CreateStudentDto, UpdateStudentDto } from './dto';
 import { StudentQueries } from './dto/student.queries.dto';
 import { StudentService } from './student.service';
+import { EnrollmentQueries } from '../enrollment/dto';
 
 @ApiTags('Students')
 @Controller('students')
@@ -44,13 +45,20 @@ export class StudentController {
   }
 
   @Get(':studentId/enrollments')
+  @ApiQuery({
+    name: 'status',
+    enum: ['IN PROGRESS', 'NOT PASSED', 'PASSED'],
+    required: false,
+  })
   async findEnrollmentsByStudentId(
     @Param('studentId') studentId: string,
+    @Query('status') status: string,
     @Query() sortCriteria: SortCriteria,
     @Query() pagination: Pagination,
   ) {
     return this.studentService.findEnrollmentsByStudentId(
       studentId,
+      status,
       sortCriteria,
       pagination,
     );

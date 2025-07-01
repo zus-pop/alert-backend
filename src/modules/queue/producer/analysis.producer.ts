@@ -12,7 +12,7 @@ export class AnalysisProducer {
     private studentService: StudentService,
   ) {}
 
-  @Cron(CronExpression.EVERY_DAY_AT_8AM)
+  @Cron(CronExpression.EVERY_WEEK)
   async retrieveEnrollmentInfo() {
     const studentIds = await this.studentService.getAllStudentIds();
     const enrollmentInfo = await Promise.all(

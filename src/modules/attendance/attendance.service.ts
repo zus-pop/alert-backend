@@ -1,14 +1,14 @@
-import { BadRequestException, Injectable, Logger, Type } from '@nestjs/common';
-import { CreateAttendanceDto } from './dto/create-attendance.dto';
-import { UpdateAttendanceDto } from './dto/update-attendance.dto';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { RedisService } from '../../shared/redis/redis.service';
-import { Attendance } from '../../shared/schemas';
 import { DeleteResult, isValidObjectId, Model, Types } from 'mongoose';
 import { ATTENDANCE_CACHE_KEY } from '../../shared/constant';
-import { AttendanceQueries } from './dto';
 import { Pagination, SortCriteria } from '../../shared/dto';
 import { WrongIdFormatException } from '../../shared/exceptions';
+import { RedisService } from '../../shared/redis/redis.service';
+import { Attendance } from '../../shared/schemas';
+import { AttendanceQueries } from './dto';
+import { CreateAttendanceDto } from './dto/create-attendance.dto';
+import { UpdateAttendanceDto } from './dto/update-attendance.dto';
 
 @Injectable()
 export class AttendanceService {
@@ -56,6 +56,8 @@ export class AttendanceService {
     this.logger.log(
       `Deleted ${result.deletedCount} attendances for enrollment ID: ${enrollmentId}`,
     );
+
+    await this.clearCache();
 
     return result;
   }
@@ -124,6 +126,8 @@ export class AttendanceService {
     if (!attendance) {
       throw new BadRequestException(`Attendance with id ${id} not found`);
     }
+
+    await this.clearCache();
 
     return attendance;
   }
