@@ -8,7 +8,17 @@ export class FirebaseService {
   constructor(@Inject('FIREBASE_APP') private readonly app: App) {}
 
   async pushNotification(message: MulticastMessage) {
-    return await getMessaging(this.app).sendEachForMulticast(message);
+    return await getMessaging(this.app).sendEachForMulticast({
+      ...message,
+      android: {
+        priority: 'high',
+      },
+      apns: {
+        headers: {
+          'apns-priority': '5',
+        },
+      },
+    });
   }
 
   async uploadToCloud(folder: string, file: Express.Multer.File) {

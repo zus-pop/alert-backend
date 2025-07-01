@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
-import { Connection, isValidObjectId, Model } from 'mongoose';
+import { Connection, isValidObjectId, Model, Types } from 'mongoose';
 import { Pagination, SortCriteria } from '../../shared/dto';
 import { RedisService } from '../../shared/redis/redis.service';
 import { Course } from '../../shared/schemas';
@@ -20,7 +20,6 @@ export class CourseService {
   constructor(
     private readonly redisService: RedisService,
     @InjectModel(Course.name) private courseModel: Model<Course>,
-    @InjectConnection() private readonly connection: Connection,
     private readonly sessionService: SessionService,
   ) {}
 
@@ -37,23 +36,14 @@ export class CourseService {
         'SemesterId or SubjectId is wrong format',
       );
 
-    const session = await this.connection.startSession();
-    session.startTransaction();
-
     try {
       const course = await this.courseModel.create(createCourseDto);
 
-      await this.sessionService.createManySessionByCourseId(
-        course._id.toString(),
-      );
+      await this.sessionService.createManySessionByCourseId(course._id);
       await this.clearCache();
-      await session.commitTransaction();
       return course;
     } catch (error) {
-      await session.abortTransaction();
       throw new BadRequestException({ message: error.message });
-    } finally {
-      await session.endSession();
     }
   }
 
@@ -107,15 +97,13 @@ export class CourseService {
     return course;
   }
 
-  async findManySessionById(id: string) {
+  async findManySessionByCourseId(id: string) {
     return await this.sessionService.findAllByCourseId(id);
   }
 
   async update(id: string, updateCourseDto: UpdateCourseDto) {
     if (!isValidObjectId(id)) throw new WrongIdFormatException();
 
-    const session = await this.connection.startSession();
-    session.startTransaction();
     try {
       const course = await this.courseModel.findByIdAndUpdate(
         id,
@@ -123,39 +111,28 @@ export class CourseService {
         { new: true },
       );
       await this.clearCache();
-      session.endSession();
       return course;
     } catch (error) {
-      session.abortTransaction();
       throw new BadRequestException({ message: error.message });
-    } finally {
-      session.endSession();
     }
   }
 
   async remove(id: string) {
     if (!isValidObjectId(id)) throw new WrongIdFormatException();
 
-    const session = await this.connection.startSession();
-    session.startTransaction();
-
     try {
-      const course = await this.courseModel.findByIdAndDelete(id, { session });
+      const course = await this.courseModel.findByIdAndDelete(id);
 
       if (!course) {
         throw new BadRequestException('Course not found');
       }
 
-      await this.sessionService.removeManyByCourseId(id);
+      await this.sessionService.removeManyByCourseId(course._id);
       await this.clearCache();
 
-      await session.commitTransaction();
       return { message: 'Course and related 20 sessions deleted successfully' };
     } catch (error) {
-      await session.abortTransaction();
       throw new BadRequestException({ message: error.message });
-    } finally {
-      await session.endSession();
     }
   }
 }

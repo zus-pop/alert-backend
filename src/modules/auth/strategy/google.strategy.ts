@@ -61,7 +61,7 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
       //     });
       //     return done(null, newStudent);
       //   }
-      return done(null, error);
+      return done(null, new InternalServerErrorException(error.message));
     }
   }
 }

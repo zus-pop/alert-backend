@@ -8,6 +8,8 @@ import {
   IsString,
   ValidateNested,
 } from 'class-validator';
+import { Types } from 'mongoose';
+import { Enrollment } from '../../../shared/schemas';
 
 class SupervisorResponse {
   @IsString()
@@ -25,7 +27,7 @@ export class CreateAlertDto {
   @ApiProperty({
     required: true,
   })
-  enrollmentId: string; // ObjectId of Enrollment
+  enrollmentId: Types.ObjectId | Enrollment; // ObjectId of Enrollment
 
   @IsString()
   @IsNotEmpty()

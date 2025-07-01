@@ -1,8 +1,10 @@
 import { Module } from '@nestjs/common';
-import { EnrollmentService } from './enrollment.service';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Enrollment, EnrollmentSchema } from '../../shared/schemas';
+import { AttendanceModule } from '../attendance/attendance.module';
+import { SessionModule } from '../session/session.module';
 import { EnrollmentController } from './enrollment.controller';
+import { EnrollmentService } from './enrollment.service';
 
 @Module({
   imports: [
@@ -12,6 +14,8 @@ import { EnrollmentController } from './enrollment.controller';
         schema: EnrollmentSchema,
       },
     ]),
+    AttendanceModule,
+    SessionModule,
   ],
   controllers: [EnrollmentController],
   providers: [EnrollmentService],

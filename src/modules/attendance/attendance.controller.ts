@@ -6,10 +6,13 @@ import {
   Param,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import { AttendanceService } from './attendance.service';
 import { CreateAttendanceDto } from './dto/create-attendance.dto';
 import { UpdateAttendanceDto } from './dto/update-attendance.dto';
+import { Pagination, SortCriteria } from '../../shared/dto';
+import { AttendanceQueries } from './dto/attendance.queries.dto';
 
 @Controller('attendances')
 export class AttendanceController {
@@ -21,8 +24,12 @@ export class AttendanceController {
   }
 
   @Get()
-  findAll() {
-    return this.attendanceService.findAll();
+  findAll(
+    @Query() queries: AttendanceQueries,
+    @Query() sortCriteria: SortCriteria,
+    @Query() pagination: Pagination,
+  ) {
+    return this.attendanceService.findAll(queries, sortCriteria, pagination);
   }
 
   @Get(':id')

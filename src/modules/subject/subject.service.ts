@@ -16,7 +16,6 @@ export class SubjectService {
   constructor(
     private readonly redisService: RedisService,
     @InjectModel(Subject.name) private subjectModel: Model<Subject>,
-    @InjectConnection() private readonly connection: Connection,
   ) {}
 
   async clearCache() {
@@ -24,8 +23,6 @@ export class SubjectService {
   }
 
   async create(createSubjectDto: CreateSubjectDto) {
-    const session = await this.connection.startSession();
-    session.startTransaction();
     try {
       const existingSubject = await this.subjectModel.findOne({
         subjectCode: createSubjectDto.subjectCode,
@@ -37,13 +34,9 @@ export class SubjectService {
 
       const subject = await this.subjectModel.create(createSubjectDto);
       await this.clearCache();
-      await session.commitTransaction();
       return subject;
     } catch (error) {
-      await session.abortTransaction();
       throw new BadRequestException(error.message);
-    } finally {
-      await session.endSession();
     }
   }
 

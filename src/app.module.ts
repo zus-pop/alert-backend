@@ -21,12 +21,15 @@ import { SystemUserModule } from './modules/system-user/system-user.module';
 import { FirebaseModule } from './shared/firebase/firebase.module';
 import { HttpCacheInterceptor } from './shared/interceptor';
 import { RedisModule } from './shared/redis/redis.module';
+import { EventEmitterModule } from '@nestjs/event-emitter';
+import { NotificationModule } from './shared/notification/notification.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    EventEmitterModule.forRoot(),
     ScheduleModule.forRoot(),
     CacheModule.registerAsync({
       useFactory: async (configService: ConfigService) => {
@@ -58,6 +61,7 @@ import { RedisModule } from './shared/redis/redis.module';
     FirebaseModule,
     AlertModule,
     QueueModule,
+    NotificationModule,
   ],
   controllers: [],
   providers: [

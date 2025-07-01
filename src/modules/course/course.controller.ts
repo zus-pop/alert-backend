@@ -1,18 +1,19 @@
 import {
-    Body,
-    Controller,
-    Delete,
-    Get,
-    Param,
-    Patch,
-    Post,
-    Query,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
 } from '@nestjs/common';
 import { Pagination, SortCriteria } from '../../shared/dto';
 import { CourseService } from './course.service';
 import { CourseQueries } from './dto/course.queries.dto';
 import { CreateCourseDto } from './dto/create-course.dto';
 import { UpdateCourseDto } from './dto/update-course.dto';
+import { Types } from 'mongoose';
 
 @Controller('courses')
 export class CourseController {
@@ -34,7 +35,7 @@ export class CourseController {
 
   @Get(':id/sessions')
   findSessionsByCourseId(@Param('id') id: string) {
-    return this.courseService.findManySessionById(id);
+    return this.courseService.findManySessionByCourseId(id);
   }
 
   @Get(':id')

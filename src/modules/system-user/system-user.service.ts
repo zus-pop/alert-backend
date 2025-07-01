@@ -21,7 +21,6 @@ export class SystemUserService {
   constructor(
     private readonly redisService: RedisService,
     @InjectModel(SystemUser.name) private systemUserModel: Model<SystemUser>,
-    @InjectConnection() private readonly connection: Connection,
   ) {}
 
   async clearCache() {
@@ -36,18 +35,13 @@ export class SystemUserService {
     if (existingUser) {
       throw new BadRequestException('Email already exists');
     }
-    const session = await this.connection.startSession();
-    session.startTransaction();
+
     try {
       const systemUser = await this.systemUserModel.create(createSystemUserDto);
       await this.clearCache();
-      await session.commitTransaction();
       return systemUser;
     } catch (error) {
-      await session.abortTransaction();
       throw new BadRequestException(error.message);
-    } finally {
-      await session.endSession();
     }
   }
 
@@ -118,8 +112,6 @@ export class SystemUserService {
   async update(id: string, updateSystemUserDto: UpdateSystemUserDto) {
     if (!isValidObjectId(id)) throw new WrongIdFormatException();
 
-    const session = await this.connection.startSession();
-    session.startTransaction();
     try {
       const systemUser = await this.systemUserModel.findByIdAndUpdate(
         id,
@@ -130,33 +122,22 @@ export class SystemUserService {
       if (!systemUser) throw new BadRequestException('System User not found');
 
       await this.clearCache();
-      await session.commitTransaction();
       return systemUser;
     } catch (error) {
-      await session.abortTransaction();
       throw new BadRequestException(error.message);
-    } finally {
-      await session.endSession();
     }
   }
 
   async remove(id: string) {
     if (!isValidObjectId(id)) throw new WrongIdFormatException();
 
-    const session = await this.connection.startSession();
-    session.startTransaction();
-
     try {
       const result = await this.systemUserModel.findByIdAndDelete(id);
       if (!result) throw new NotFoundException('System user not found');
       await this.clearCache();
-      await session.commitTransaction();
       return result;
     } catch (error) {
-      await session.abortTransaction();
       throw new BadRequestException(error.message);
-    } finally {
-      await session.endSession();
     }
   }
 }

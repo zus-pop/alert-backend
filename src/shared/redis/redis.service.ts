@@ -21,12 +21,16 @@ export class RedisService {
   async clearCache(keyPattern: string) {
     const store = this.redisCache.stores[0];
     if (store?.iterator) {
-      for await (const [key, _] of store.iterator({})) {
-        if (key.startsWith(keyPattern)) {
-          this.redisCache.del(key);
+      try {
+        for await (const [key, _] of store.iterator({})) {
+          if (key && typeof key === 'string' && key.startsWith(keyPattern)) {
+            this.redisCache.del(key);
+          }
         }
+        this.logger.log(`Cleared cached data ${keyPattern}*`);
+      } catch (error) {
+        this.logger.error(`Store does not have ${keyPattern}* keys`);
       }
-      this.logger.log(`Cleared cached data ${keyPattern}*`);
     }
   }
 

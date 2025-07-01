@@ -8,6 +8,7 @@ export class UpdateStudentDto {
     required: true,
     type: String,
     pattern: '^[a-zA-Z0-9]{8}$',
+    description: 'Student code must be exactly 8 alphanumeric characters',
   })
   @Matches(/^[a-zA-Z0-9]{8}$/, {
     message: 'Student code must be exactly 8 alphanumeric characters',
