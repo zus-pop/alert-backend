@@ -41,7 +41,7 @@ import {
 import { CacheTTL } from '@nestjs/cache-manager';
 
 @Controller('auth')
-@CacheTTL(0)
+@CacheTTL(1)
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
