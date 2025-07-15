@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { Connection, isValidObjectId, Model } from 'mongoose';
-import { SYSTEM_USER_KEY } from '../../shared/constant';
+import { SYSTEM_USER_CACHE_KEY } from '../../shared/constant';
 import { Pagination, SortCriteria } from '../../shared/dto';
 import { WrongIdFormatException } from '../../shared/exceptions';
 import { RedisService } from '../../shared/redis/redis.service';
@@ -24,7 +24,7 @@ export class SystemUserService {
   ) {}
 
   async clearCache() {
-    await this.redisService.clearCache(SYSTEM_USER_KEY);
+    await this.redisService.clearCache(SYSTEM_USER_CACHE_KEY);
   }
 
   async create(createSystemUserDto: CreateSystemUserDto) {
