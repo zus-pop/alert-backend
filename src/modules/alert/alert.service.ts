@@ -45,6 +45,7 @@ export class AlertService {
         NEW_ALERT_EVENT,
         new NewAlertEvent(
           alert.enrollmentId.studentId as Types.ObjectId,
+          alert._id,
           alert.title,
           alert.content,
         ),
@@ -184,6 +185,7 @@ export class AlertService {
         ALERT_RESPONDED_EVENT,
         new RespondedAlertEvent(
           alert.enrollmentId.studentId as Types.ObjectId,
+          alert._id,
           alert.title,
           alert.content,
           alert.supervisorResponse,
