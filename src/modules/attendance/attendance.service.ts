@@ -78,9 +78,9 @@ export class AttendanceService {
     const skip = (page - 1) * limit;
 
     if (queries.enrollmentId)
-        queries.enrollmentId = new Types.ObjectId(queries.enrollmentId);
+      queries.enrollmentId = new Types.ObjectId(queries.enrollmentId);
     if (queries.sessionId)
-        queries.sessionId = new Types.ObjectId(queries.sessionId);
+      queries.sessionId = new Types.ObjectId(queries.sessionId);
 
     const [attendances, total] = await Promise.all([
       this.attendanceModel
@@ -102,7 +102,9 @@ export class AttendanceService {
   async findByEnrollmentId(enrollmentId: Types.ObjectId) {
     if (!isValidObjectId(enrollmentId)) throw new WrongIdFormatException();
 
-    const attendances = await this.attendanceModel.find({ enrollmentId });
+    const attendances = await this.attendanceModel
+      .find({ enrollmentId })
+      .populate('sessionId', 'startTime endTime');
 
     return attendances;
   }

@@ -37,6 +37,10 @@ export class NotificationService {
         imageUrl:
           'https://firebasestorage.googleapis.com/v0/b/blood-donation-18260.firebasestorage.app/o/FCMImages%2FAiLert_small_logo_color_alpha-300x300.png?alt=media&token=a603b52b-7940-422e-baa5-93c800aa434a',
       },
+      data: {
+        type: 'alert',
+        id: event.alertId.toString(),
+      },
     });
   }
 
@@ -64,6 +68,10 @@ export class NotificationService {
         body: event.supervisorResponse?.response ?? event.content,
         imageUrl:
           'https://firebasestorage.googleapis.com/v0/b/blood-donation-18260.firebasestorage.app/o/FCMImages%2FAiLert_small_logo_color_alpha-300x300.png?alt=media&token=a603b52b-7940-422e-baa5-93c800aa434a',
+      },
+      data: {
+        type: 'alert',
+        id: event.alertId.toString(),
       },
     });
   }
