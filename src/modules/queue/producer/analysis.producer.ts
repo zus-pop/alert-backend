@@ -28,7 +28,9 @@ export class AnalysisProducer {
         this.analysisQueue.add(
           ANALYSIS_QUEUE,
           {
-            enrollmentInfo: JSON.stringify(info.enrollments),
+            enrollmentInfo: JSON.stringify(
+              info.enrollments.filter((e) => e.status !== 'PASSED'),
+            ),
           },
           {
             removeOnComplete: true,

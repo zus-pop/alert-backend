@@ -3,8 +3,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectConnection, InjectModel } from '@nestjs/mongoose';
-import { Connection, isValidObjectId, Model } from 'mongoose';
+import { InjectModel } from '@nestjs/mongoose';
+import { isValidObjectId, Model, Types } from 'mongoose';
 import { SUBJECT_CACHE_KEY } from '../../shared/constant';
 import { Pagination, SortCriteria } from '../../shared/dto';
 import { RedisService } from '../../shared/redis/redis.service';
@@ -32,7 +32,12 @@ export class SubjectService {
         throw new BadRequestException('Subject code already exists');
       }
 
-      const subject = await this.subjectModel.create(createSubjectDto);
+      const subject = await this.subjectModel.create({
+        ...createSubjectDto,
+        prerequisite: createSubjectDto.prerequisite.map(
+          (p) => new Types.ObjectId(p),
+        ),
+      });
       await this.clearCache();
       return subject;
     } catch (error) {
@@ -45,7 +50,7 @@ export class SubjectService {
     sortCriteria: SortCriteria,
     pagination: Pagination,
   ) {
-    const sortField = sortCriteria.sortBy ?? 'subjectName';
+    const sortField = sortCriteria.sortBy ?? 'updatedAt';
     const sortOrder =
       sortCriteria.order === 'ascending' || sortCriteria.order === 'asc'
         ? 1
@@ -65,6 +70,11 @@ export class SubjectService {
     const [subjects, total] = await Promise.all([
       this.subjectModel
         .find(queries)
+        .populate({
+          path: 'prerequisite',
+          select: 'subjectCode subjectName -_id',
+          //   transform: (doc) => doc.subjectCode,
+        })
         .sort({ [sortField]: sortOrder })
         .skip(skip)
         .limit(limit),
@@ -82,7 +92,11 @@ export class SubjectService {
   async findOne(id: string) {
     if (!isValidObjectId(id))
       throw new BadRequestException('Id is wrong format');
-    const subject = await this.subjectModel.findById(id);
+    const subject = await this.subjectModel.findById(id).populate({
+      path: 'prerequisite',
+      select: 'subjectCode subjectName -_id',
+      //   transform: (doc) => doc.subjectCode,
+    });
     if (!subject) throw new NotFoundException('Subject not found');
     return subject;
   }
@@ -93,8 +107,13 @@ export class SubjectService {
 
     const subject = await this.subjectModel.findByIdAndUpdate(
       id,
-      updateSubjectDto,
-      { new: true },
+      {
+        ...updateSubjectDto,
+        prerequisite: updateSubjectDto.prerequisite?.map(
+          (p) => new Types.ObjectId(p),
+        ),
+      },
+      { new: true, upsert: true },
     );
 
     if (!subject) throw new BadRequestException('Subject not found');

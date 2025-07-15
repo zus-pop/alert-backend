@@ -7,3 +7,7 @@ export * from './enrollment.schema';
 export * from './attendance.schema';
 export * from './session.schema';
 export * from './alert.schema';
+export * from './major.schema';
+export * from './combo.schema';
+export * from './curriculum.schema';
+export * from './curriculum-course.schema';

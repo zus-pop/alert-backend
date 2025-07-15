@@ -23,6 +23,9 @@ import { HttpCacheInterceptor } from './shared/interceptor';
 import { RedisModule } from './shared/redis/redis.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { NotificationModule } from './shared/notification/notification.module';
+import { MajorModule } from './modules/major/major.module';
+import { ComboModule } from './modules/combo/combo.module';
+import { CurriculumModule } from './modules/curriculum/curriculum.module';
 
 @Module({
   imports: [
@@ -62,6 +65,9 @@ import { NotificationModule } from './shared/notification/notification.module';
     AlertModule,
     QueueModule,
     NotificationModule,
+    MajorModule,
+    ComboModule,
+    CurriculumModule,
   ],
   controllers: [],
   providers: [
