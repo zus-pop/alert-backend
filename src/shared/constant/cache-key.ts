@@ -1,0 +1,12 @@
+export const ATTENDANCE_CACHE_KEY = '/api/attendances';
+export const SESSION_CACHE_KEY = '/api/sessions';
+export const ALERT_CACHE_KEY = '/api/alerts';
+export const ENROLLMENT_CACHE_KEY = '/api/enrollments';
+export const SEMESTER_CACHE_KEY = '/api/semesters';
+export const STUDENT_CACHE_KEY = '/api/students';
+export const SUBJECT_CACHE_KEY = '/api/subjects';
+export const COURSE_CACHE_KEY = '/api/courses';
+export const SYSTEM_USER_CACHE_KEY = '/api/system-users';
+export const MAJOR_CACHE_KEY = '/api/majors';
+export const COMBO_CACHE_KEY = '/api/combos';
+export const CURRICULUM_CACHE_KEY = '/api/curriculums';

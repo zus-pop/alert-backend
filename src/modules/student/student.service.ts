@@ -1,17 +1,20 @@
 import {
-  BadRequestException,
-  Injectable,
-  Logger,
-  NotFoundException,
+    BadRequestException,
+    Injectable,
+    Logger,
+    NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { isValidObjectId, Model, Types } from 'mongoose';
+import { STUDENT_CACHE_KEY } from '../../shared/constant';
 import { Pagination, SortCriteria } from '../../shared/dto';
+import { WrongIdFormatException } from '../../shared/exceptions';
 import { RedisService } from '../../shared/redis/redis.service';
 import { Student, StudentDocument } from '../../shared/schemas';
-import { EnrollmentQueries } from '../enrollment/dto';
+import { AttendanceService } from '../attendance/attendance.service';
 import { EnrollmentService } from '../enrollment/enrollment.service';
 import { CreateStudentDto, StudentQueries, UpdateStudentDto } from './dto';
+import { EnrollmentQueries } from '../enrollment/dto';
 
 @Injectable()
 export class StudentService {
@@ -21,25 +24,32 @@ export class StudentService {
     @InjectModel(Student.name) private studentModel: Model<Student>,
     private readonly redisService: RedisService,
     private readonly enrollmentService: EnrollmentService,
+    private readonly attendanceService: AttendanceService,
   ) {}
+
+  async clearCache() {
+    await this.redisService.clearCache(STUDENT_CACHE_KEY);
+  }
+
+  async getAllStudentIds() {
+    const studentIds = await this.studentModel
+      .where({ isDeleted: false })
+      .find()
+      .select('_id');
+
+    return studentIds;
+  }
 
   async find(
     queries: StudentQueries,
     sortCriteria: SortCriteria,
     pagination: Pagination,
   ) {
-    // Find cached data first
-    const key = this.redisService.hashKey('students', {
-      ...queries,
-      ...sortCriteria,
-      ...pagination,
-    });
-    const cacheData =
-      await this.redisService.getCachedData<StudentDocument>(key);
-    if (cacheData) return cacheData;
-
     const sortField = sortCriteria.sortBy ?? 'firstName';
-    const sortOrder = sortCriteria.order === 'desc' ? -1 : 1;
+    const sortOrder =
+      sortCriteria.order === 'ascending' || sortCriteria.order === 'asc'
+        ? 1
+        : -1;
 
     if (queries.firstName) {
       queries.firstName = {
@@ -61,11 +71,13 @@ export class StudentService {
 
     const [students, total] = await Promise.all([
       this.studentModel
+        .where({ isDeleted: false })
+        .select('-password -__v')
         .find(queries)
         .sort({ [sortField]: sortOrder })
         .skip(skip)
         .limit(limit),
-      this.studentModel.countDocuments(queries),
+      this.studentModel.where({ isDeleted: false }).countDocuments(queries),
     ]);
 
     const response = {
@@ -73,22 +85,17 @@ export class StudentService {
       totalItems: total,
       totalPage: Math.ceil(total / limit),
     };
-
-    if (students.length)
-      this.redisService.cacheData({
-        key: key,
-        data: response,
-        ttl: 30,
-      });
-
     return response;
   }
 
   async findById(id: string) {
-    if (!isValidObjectId(id))
-      throw new BadRequestException('Id is not right format');
+    if (!isValidObjectId(id)) {
+      this.logger.error('Finding student by ID:', id);
+      throw new WrongIdFormatException();
+    }
 
     const student = await this.studentModel
+      .where({ isDeleted: false })
       .findById(id)
       .select('-password -__v');
 
@@ -101,18 +108,32 @@ export class StudentService {
     const student = await this.findById(id);
 
     // Get all enrollments for this student
-    const result = await this.enrollmentService.findByStudentId(
-      new Types.ObjectId(id),
-      {},
-      { sortBy: 'updatedAt', order: 'desc' },
-      { page: 1, limit: 100 },
+    const enrollments = await this.enrollmentService.findAllByStudentId(
+      student._id,
+    );
+
+    const enrollmentWithAttendances = await Promise.all(
+      enrollments.data.map(async (enrollment) => {
+        const attendances = await this.attendanceService.findByEnrollmentId(
+          enrollment._id,
+        );
+        return {
+          ...enrollment.toObject(),
+          attendances: attendances,
+          attendanceSummary: {
+            total: attendances.length,
+            attended: attendances.filter((a) => a.status === 'ATTENDED').length,
+            absent: attendances.filter((a) => a.status === 'ABSENT').length,
+            notYet: attendances.filter((a) => a.status === 'NOT YET').length,
+          },
+        };
+      }),
     );
 
     return {
       studentInfo: student,
-      enrollments: result.data,
-      totalEnrollments: result.totalItems,
-      profileCompleteness: this.calculateProfileCompleteness(student),
+      enrollments: enrollmentWithAttendances,
+      totalEnrollments: enrollments.totalItems,
     };
   }
 
@@ -130,7 +151,7 @@ export class StudentService {
 
   async findEnrollmentsByStudentId(
     id: string,
-    queries: EnrollmentQueries,
+    status: string,
     sortCriteria: SortCriteria,
     pagination: Pagination,
   ) {
@@ -138,7 +159,7 @@ export class StudentService {
 
     return await this.enrollmentService.findByStudentId(
       new Types.ObjectId(id),
-      queries,
+      status,
       sortCriteria,
       pagination,
     );
@@ -148,6 +169,8 @@ export class StudentService {
     studentId: Types.ObjectId,
     enrollmentId: Types.ObjectId,
   ) {
+    await this.findById(studentId.toString());
+
     const enrollment = await this.enrollmentService.findOne(
       enrollmentId.toString(),
     );
@@ -160,8 +183,31 @@ export class StudentService {
     return enrollment;
   }
 
+  async findAttendancesByEnrollmentIdAndStudentId(
+    studentId: Types.ObjectId,
+    enrollmentId: Types.ObjectId,
+  ) {
+    await this.findById(studentId.toString());
+
+    const enrollment = await this.enrollmentService.findOne(
+      enrollmentId.toString(),
+    );
+
+    if (!enrollment?.studentId._id.equals(studentId))
+      throw new BadRequestException(
+        'This enrollment does not belong to this student',
+      );
+
+    const attendances = await this.attendanceService.findByEnrollmentId(
+      enrollment._id,
+    );
+    return attendances;
+  }
+
   async findByEmail(email: string) {
-    const student = await this.studentModel.findOne({ email: email });
+    const student = await this.studentModel
+      .where({ isDeleted: false })
+      .findOne({ email: email });
 
     if (!student) throw new NotFoundException('Student not found!');
 
@@ -169,27 +215,73 @@ export class StudentService {
   }
 
   async create(createStudentDto: CreateStudentDto) {
-    return this.studentModel.create(createStudentDto);
+    try {
+      const student = await this.studentModel.findOne({
+        email: createStudentDto.email,
+      });
+
+      if (student) throw new BadRequestException('Email existed');
+      await this.clearCache();
+      return await this.studentModel.create(createStudentDto);
+    } catch (error) {
+      throw new BadRequestException(error.message);
+    }
   }
 
   async update(id: string, updateStudentDto: UpdateStudentDto) {
-    const student = await this.findById(id);
-
-    Object.keys(updateStudentDto).forEach(key => {
-      if (updateStudentDto[key] !== undefined) {
-        student[key] = updateStudentDto[key];
-      }
-    });
-    return student.save();
+    try {
+      const student = await this.studentModel
+        .where({ isDeleted: false })
+        .findByIdAndUpdate(id, updateStudentDto, { new: true });
+      if (!student) throw new BadRequestException('Student not found');
+      await this.clearCache();
+      return student;
+    } catch (error) {
+      throw new BadRequestException(error.message);
+    }
   }
 
   async remove(id: string) {
-    const result = await this.studentModel.findByIdAndDelete(id);
+    if (!isValidObjectId(id)) throw new WrongIdFormatException();
 
-    if (!result) {
-      throw new NotFoundException('Student not found!');
+    try {
+      const result = await this.studentModel
+        .where({ isDeleted: false })
+        .findByIdAndUpdate(
+          id,
+          { isDeleted: true, deletedAt: new Date() },
+          { new: true },
+        );
+
+      if (!result) {
+        throw new NotFoundException('Student not found!');
+      }
+      await this.clearCache();
+      return result;
+    } catch (error) {
+      throw new BadRequestException(error.message);
     }
+  }
 
-    return result;
+  async restore(id: string) {
+    if (!isValidObjectId(id)) throw new WrongIdFormatException();
+
+    try {
+      const result = await this.studentModel
+        .where({ isDeleted: true })
+        .findByIdAndUpdate(
+          id,
+          { isDeleted: false, deletedAt: null },
+          { new: true },
+        );
+
+      if (!result) {
+        throw new NotFoundException('Student not found!');
+      }
+      await this.clearCache();
+      return result;
+    } catch (error) {
+      throw new BadRequestException(error.message);
+    }
   }
 }

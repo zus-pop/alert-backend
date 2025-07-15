@@ -3,13 +3,18 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { isValidObjectId, Model } from 'mongoose';
+import { InjectConnection, InjectModel } from '@nestjs/mongoose';
+import { Connection, isValidObjectId, Model } from 'mongoose';
+import { SYSTEM_USER_CACHE_KEY } from '../../shared/constant';
 import { Pagination, SortCriteria } from '../../shared/dto';
+import { WrongIdFormatException } from '../../shared/exceptions';
 import { RedisService } from '../../shared/redis/redis.service';
-import { SystemUser, SystemUserDocument } from '../../shared/schemas';
-import { CreateSystemUserDto, UpdateSystemUserDto } from './dto';
-import { SystemUserQueries } from './dto/system-user.queries.dto';
+import { SystemUser } from '../../shared/schemas';
+import {
+  CreateSystemUserDto,
+  SystemUserQueries,
+  UpdateSystemUserDto,
+} from './dto';
 
 @Injectable()
 export class SystemUserService {
@@ -18,8 +23,26 @@ export class SystemUserService {
     @InjectModel(SystemUser.name) private systemUserModel: Model<SystemUser>,
   ) {}
 
-  create(createSystemUserDto: CreateSystemUserDto) {
-    return this.systemUserModel.create(createSystemUserDto);
+  async clearCache() {
+    await this.redisService.clearCache(SYSTEM_USER_CACHE_KEY);
+  }
+
+  async create(createSystemUserDto: CreateSystemUserDto) {
+    // Check if the email already exists
+    const existingUser = await this.systemUserModel.findOne({
+      email: createSystemUserDto.email,
+    });
+    if (existingUser) {
+      throw new BadRequestException('Email already exists');
+    }
+
+    try {
+      const systemUser = await this.systemUserModel.create(createSystemUserDto);
+      await this.clearCache();
+      return systemUser;
+    } catch (error) {
+      throw new BadRequestException(error.message);
+    }
   }
 
   async findAll(
@@ -27,18 +50,11 @@ export class SystemUserService {
     sortCriteria: SortCriteria,
     pagination: Pagination,
   ) {
-    // Find cached data first
-    const key = this.redisService.hashKey('system-users', {
-      ...queries,
-      ...sortCriteria,
-      ...pagination,
-    });
-    const cacheData =
-      await this.redisService.getCachedData<SystemUserDocument>(key);
-    if (cacheData) return cacheData;
-
-    const sortField = sortCriteria.sortBy ?? 'firstName';
-    const sortOrder = sortCriteria.order === 'desc' ? -1 : 1;
+    const sortField = sortCriteria.sortBy ?? 'updatedAt';
+    const sortOrder =
+      sortCriteria.order === 'ascending' || sortCriteria.order === 'asc'
+        ? 1
+        : -1;
 
     if (queries.firstName) {
       queries.firstName = {
@@ -73,39 +89,15 @@ export class SystemUserService {
       totalPage: Math.ceil(total / limit),
     };
 
-    if (systemUsers.length)
-      this.redisService.cacheData({
-        key: key,
-        data: response,
-        ttl: 30,
-      });
-
     return response;
   }
 
   async findById(id: string) {
-    if (!isValidObjectId(id))
-      throw new BadRequestException('Id is not right format');
+    if (!isValidObjectId(id)) throw new WrongIdFormatException();
 
-    const cachedData =
-      await this.redisService.getCachedData<SystemUserDocument>(
-        `system-user:${id}`,
-      );
-
-    if (cachedData) return cachedData;
-
-    const systemUser = await this.systemUserModel
-      .findById(id)
-      .select('-password -__v');
+    const systemUser = await this.systemUserModel.findById(id).select('-__v');
 
     if (!systemUser) throw new NotFoundException('System user not found');
-
-    this.redisService.cacheData({
-      key: `system-user:${id}`,
-      data: systemUser,
-      ttl: 30,
-    });
-
     return systemUser;
   }
 
@@ -118,22 +110,34 @@ export class SystemUserService {
   }
 
   async update(id: string, updateSystemUserDto: UpdateSystemUserDto) {
-    const systemUser = await this.findById(id);
+    if (!isValidObjectId(id)) throw new WrongIdFormatException();
 
-    Object.keys(updateSystemUserDto).forEach(key => {
-      if (updateSystemUserDto[key] !== undefined) {
-        systemUser[key] = updateSystemUserDto[key];
-      }
-    });
-    this.redisService.invalidate(`system-user:${id}`);
-    return systemUser.save();
+    try {
+      const systemUser = await this.systemUserModel.findByIdAndUpdate(
+        id,
+        updateSystemUserDto,
+        { new: true },
+      );
+
+      if (!systemUser) throw new BadRequestException('System User not found');
+
+      await this.clearCache();
+      return systemUser;
+    } catch (error) {
+      throw new BadRequestException(error.message);
+    }
   }
 
   async remove(id: string) {
-    const result = await this.systemUserModel.findByIdAndDelete(id);
+    if (!isValidObjectId(id)) throw new WrongIdFormatException();
 
-    if (!result) throw new NotFoundException('System user not found');
-
-    return result;
+    try {
+      const result = await this.systemUserModel.findByIdAndDelete(id);
+      if (!result) throw new NotFoundException('System user not found');
+      await this.clearCache();
+      return result;
+    } catch (error) {
+      throw new BadRequestException(error.message);
+    }
   }
 }

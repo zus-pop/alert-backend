@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -41,13 +42,26 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
         new BadRequestException('Email must belong to fpt.edu.vn domain'),
       );
     }
-    const student = await this.studentService.findByEmail(email);
+    try {
+      const student = await this.studentService.findByEmail(email);
 
-    student.firstName = profile._json.given_name as string;
-    student.lastName = profile._json.family_name as string;
-    student.image = profile._json.picture as string;
+      student.firstName = profile._json.given_name as string;
+      student.lastName = profile._json.family_name as string;
+      student.image = profile._json.picture as string;
 
-    await student.save();
-    return done(null, student);
+      await student.save();
+      return done(null, student);
+    } catch (error) {
+      //   if (error instanceof NotFoundException) {
+      //     const newStudent = await this.studentService.create({
+      //       email,
+      //       firstName: profile._json.given_name as string,
+      //       lastName: profile._json.family_name as string,
+      //       image: profile._json.picture as string,
+      //     });
+      //     return done(null, newStudent);
+      //   }
+      return done(null, new InternalServerErrorException(error.message));
+    }
   }
 }

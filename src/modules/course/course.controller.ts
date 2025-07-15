@@ -1,25 +1,49 @@
 import {
-  Controller,
-  Get,
-  Post,
   Body,
-  Patch,
-  Param,
+  Controller,
   Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
   Query,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { Pagination, SortCriteria } from '../../shared/dto';
 import { CourseService } from './course.service';
+import { CourseQueries } from './dto/course.queries.dto';
 import { CreateCourseDto } from './dto/create-course.dto';
 import { UpdateCourseDto } from './dto/update-course.dto';
-import { CourseQueries } from './dto/course.queries.dto';
-import { Pagination, SortCriteria } from '../../shared/dto';
+import { Types } from 'mongoose';
+import { ApiBody, ApiConsumes } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { FirebaseService } from '../../shared/firebase/firebase.service';
 
 @Controller('courses')
 export class CourseController {
-  constructor(private readonly courseService: CourseService) {}
+  constructor(
+    private readonly courseService: CourseService,
+    private readonly firebaseService: FirebaseService,
+  ) {}
 
   @Post()
-  create(@Body() createCourseDto: CreateCourseDto) {
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    type: CreateCourseDto,
+  })
+  @UseInterceptors(FileInterceptor('image'))
+  async create(
+    @Body() createCourseDto: CreateCourseDto,
+    @UploadedFile() image: Express.Multer.File,
+  ) {
+    if (image) {
+      const imageUrl = await this.firebaseService.uploadToCloud(
+        'course',
+        image,
+      );
+      createCourseDto.image = imageUrl;
+    }
     return this.courseService.create(createCourseDto);
   }
 
@@ -34,7 +58,7 @@ export class CourseController {
 
   @Get(':id/sessions')
   findSessionsByCourseId(@Param('id') id: string) {
-    return this.courseService.findManySessionById(id);
+    return this.courseService.findManySessionByCourseId(id);
   }
 
   @Get(':id')
@@ -43,7 +67,23 @@ export class CourseController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateCourseDto: UpdateCourseDto) {
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    type: UpdateCourseDto,
+  })
+  @UseInterceptors(FileInterceptor('image'))
+  async update(
+    @Param('id') id: string,
+    @UploadedFile() image: Express.Multer.File,
+    @Body() updateCourseDto: UpdateCourseDto,
+  ) {
+    if (image) {
+      const imageUrl = await this.firebaseService.uploadToCloud(
+        'course',
+        image,
+      );
+      updateCourseDto.image = imageUrl;
+    }
     return this.courseService.update(id, updateCourseDto);
   }
 

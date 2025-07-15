@@ -11,6 +11,7 @@ export class SortCriteria {
   @ApiProperty({
     required: false,
     enum: ['asc', 'desc', 'ascending', 'descending'],
+    description: 'Sort order for the results',
   })
-  order?: 'asc' | 'desc' | 'ascending' | 'descending';
+  order?: 'asc' | 'desc' | 'ascending' | 'descending' = 'desc';
 }

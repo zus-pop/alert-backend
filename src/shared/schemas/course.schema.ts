@@ -23,6 +23,12 @@ export class Course {
     ref: 'Semester',
   })
   semesterId: Semester;
+
+  @Prop({
+    type: String,
+    required: false,
+  })
+  image?: string;
 }
 
 export const CourseSchema = SchemaFactory.createForClass(Course);

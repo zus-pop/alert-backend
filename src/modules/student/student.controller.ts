@@ -6,19 +6,18 @@ import {
   HttpCode,
   HttpStatus,
   Param,
-  ParseIntPipe,
   Patch,
   Post,
   Query,
 } from '@nestjs/common';
-import { StudentService } from './student.service';
-import { StudentQueries } from './dto/student.queries.dto';
-import { SortCriteria } from '../../shared/dto/sort.dto';
 import { ApiQuery, ApiTags } from '@nestjs/swagger';
-import { Pagination } from '../../shared/dto/pagination.dto';
-import { CreateStudentDto, UpdateStudentDto } from './dto';
-import { EnrollmentQueries } from '../enrollment/dto';
 import { Types } from 'mongoose';
+import { Pagination } from '../../shared/dto/pagination.dto';
+import { SortCriteria } from '../../shared/dto/sort.dto';
+import { CreateStudentDto, UpdateStudentDto } from './dto';
+import { StudentQueries } from './dto/student.queries.dto';
+import { StudentService } from './student.service';
+import { EnrollmentQueries } from '../enrollment/dto';
 
 @ApiTags('Students')
 @Controller('students')
@@ -27,7 +26,9 @@ export class StudentController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  async create(@Body() createStudentDto: CreateStudentDto) {}
+  async create(@Body() createStudentDto: CreateStudentDto) {
+    return this.studentService.create(createStudentDto);
+  }
 
   @Get()
   @ApiQuery({
@@ -44,15 +45,20 @@ export class StudentController {
   }
 
   @Get(':studentId/enrollments')
+  @ApiQuery({
+    name: 'status',
+    enum: ['IN PROGRESS', 'NOT PASSED', 'PASSED'],
+    required: false,
+  })
   async findEnrollmentsByStudentId(
     @Param('studentId') studentId: string,
-    @Query() queries: EnrollmentQueries,
+    @Query('status') status: string,
     @Query() sortCriteria: SortCriteria,
     @Query() pagination: Pagination,
   ) {
     return this.studentService.findEnrollmentsByStudentId(
       studentId,
-      queries,
+      status,
       sortCriteria,
       pagination,
     );
@@ -74,7 +80,7 @@ export class StudentController {
     @Param('studentId') studentId: string,
     @Param('enrollmentId') enrollmentId: string,
   ) {
-    return this.studentService.findEnrollmentByEnrollmentIdAndStudentId(
+    return this.studentService.findAttendancesByEnrollmentIdAndStudentId(
       new Types.ObjectId(studentId),
       new Types.ObjectId(enrollmentId),
     );
@@ -95,6 +101,11 @@ export class StudentController {
 
   @Delete(':id')
   async remove(@Param('id') id: string) {
-    return this.remove(id);
+    return this.studentService.remove(id);
+  }
+
+  @Patch(':id/restore')
+  async restore(@Param('id') id: string) {
+    return this.studentService.restore(id);
   }
 }

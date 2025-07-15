@@ -15,6 +15,14 @@ export enum Gender {
 export class Student {
   @Prop({
     required: true,
+    unique: true,
+    type: String,
+    match: /^[a-zA-Z0-9]{8}$/,
+  })
+  studentCode: string;
+
+  @Prop({
+    required: true,
   })
   firstName: string;
   @Prop({
@@ -32,6 +40,7 @@ export class Student {
 
   @Prop({
     required: true,
+    unique: true,
   })
   email: string;
   @Prop({
@@ -40,14 +49,27 @@ export class Student {
   gender: string;
 
   @Prop({
-    required: true,
+    required: false,
   })
   password: string;
 
   @Prop({
     required: false,
+    type: [String],
   })
-  deviceTokens: [string];
+  deviceTokens: string[];
+
+  @Prop({
+    required: false,
+    default: false,
+  })
+  isDeleted?: boolean;
+
+  @Prop({
+    required: false,
+    default: null,
+  })
+  deletedAt?: Date;
 }
 
 export const StudentSchema = SchemaFactory.createForClass(Student);

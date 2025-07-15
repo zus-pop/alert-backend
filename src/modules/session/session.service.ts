@@ -1,19 +1,25 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { CreateSessionDto } from './dto/create-session.dto';
-import { UpdateSessionDto } from './dto/update-session.dto';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Session } from '../../shared/schemas';
-import { Model } from 'mongoose';
+import { DeleteResult, isValidObjectId, Model, Types } from 'mongoose';
 import { RedisService } from '../../shared/redis/redis.service';
+import { Session } from '../../shared/schemas';
+import { UpdateSessionDto } from './dto/update-session.dto';
+import { CreateSessionDto } from './dto/create-session.dto';
+import { WrongIdFormatException } from '../../shared/exceptions';
 
 @Injectable()
 export class SessionService {
+  private readonly logger: Logger = new Logger(SessionService.name);
   constructor(
     @InjectModel(Session.name) private sessionModel: Model<Session>,
     private readonly redisService: RedisService,
   ) {}
 
-  async createManySessionByCourseId(courseId: string) {
+  create(createSessionDto: CreateSessionDto) {
+    return 'Not implemented yet';
+  }
+
+  async createManySessionByCourseId(courseId: Types.ObjectId) {
     const date = new Date();
     const sessions = Array.from({ length: 20 }).map((_, index) => ({
       courseId,
@@ -21,11 +27,20 @@ export class SessionService {
       startTime: date,
       endTime: date,
     }));
-    return this.sessionModel.insertMany(sessions);
+    const result = await this.sessionModel.insertMany(sessions);
+    this.logger.log(`Created ${result.length} sessions for course ${courseId}`);
+    return result;
+  }
+
+  findAll() {
+    return this.sessionModel.find().populate('courseId');
   }
 
   findAllByCourseId(courseId: string) {
-    return this.sessionModel.find({ courseId: courseId }).populate('courseId');
+    if (!isValidObjectId(courseId)) throw new WrongIdFormatException();
+    return this.sessionModel
+      .find({ courseId: new Types.ObjectId(courseId) })
+      .populate('courseId');
   }
 
   async findOne(id: string) {
@@ -37,13 +52,30 @@ export class SessionService {
   }
 
   async update(id: string, updateSessionDto: UpdateSessionDto) {
-    const session = await this.findOne(id);
+    const session = await this.sessionModel.findByIdAndUpdate(
+      id,
+      updateSessionDto,
+      { new: true },
+    );
+    if (!session) throw new NotFoundException('Session not found');
 
-    Object.assign(session, updateSessionDto);
-    return session.save();
+    return session;
   }
 
-  removeManyByCourseId(courseId: string) {
-    return this.sessionModel.deleteMany({ courseId: courseId });
+  remove(id: string) {
+    return `This action removes a #${id} session`;
+  }
+
+  async removeManyByCourseId(
+    courseId: Types.ObjectId | string,
+  ): Promise<DeleteResult> {
+    if (courseId instanceof String) {
+      courseId = new Types.ObjectId(courseId);
+    }
+    const result = await this.sessionModel.deleteMany({ courseId });
+    this.logger.log(
+      `Deleted ${result.deletedCount} sessions for course ${courseId}`,
+    );
+    return result;
   }
 }

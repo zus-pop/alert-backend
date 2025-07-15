@@ -1,21 +1,59 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { InjectConnection, InjectModel } from '@nestjs/mongoose';
+import { Connection, isValidObjectId, Model, Types } from 'mongoose';
+import { ENROLLMENT_CACHE_KEY } from '../../shared/constant';
 import { Pagination, SortCriteria } from '../../shared/dto';
+import { WrongIdFormatException } from '../../shared/exceptions';
 import { RedisService } from '../../shared/redis/redis.service';
-import { Enrollment, EnrollmentDocument } from '../../shared/schemas';
+import { Enrollment, GradeDocument } from '../../shared/schemas';
 import { EnrollmentQueries } from './dto';
 import { CreateEnrollmentDto } from './dto/create-enrollment.dto';
 import { UpdateEnrollmentDto } from './dto/update-enrollment.dto';
+import { SessionService } from '../session/session.service';
+import { AttendanceService } from '../attendance/attendance.service';
 
 @Injectable()
 export class EnrollmentService {
   constructor(
     private readonly redisService: RedisService,
     @InjectModel(Enrollment.name) private enrollmentModel: Model<Enrollment>,
+
+    private readonly attendanceService: AttendanceService,
+    private readonly sessionService: SessionService,
   ) {}
-  create(createEnrollmentDto: CreateEnrollmentDto) {
-    return this.enrollmentModel.create(createEnrollmentDto);
+  async create(createEnrollmentDto: CreateEnrollmentDto) {
+    if (
+      !isValidObjectId(createEnrollmentDto.studentId) ||
+      !isValidObjectId(createEnrollmentDto.courseId)
+    )
+      throw new WrongIdFormatException('Invalid student or course ID');
+
+    try {
+      const enrollment = await this.enrollmentModel.create({
+        ...createEnrollmentDto,
+        studentId: new Types.ObjectId(createEnrollmentDto.studentId),
+        courseId: new Types.ObjectId(createEnrollmentDto.courseId),
+      });
+      const sessions = await this.sessionService.findAllByCourseId(
+        enrollment.courseId.toString(),
+      );
+      await this.attendanceService.createByEnrollmentIdAndSessionId(
+        enrollment._id,
+        sessions.map((session) => session._id),
+      );
+      await this.clearCache();
+      return enrollment;
+    } catch (error) {
+      throw new BadRequestException(error.message);
+    }
+  }
+
+  async clearCache() {
+    await this.redisService.clearCache(ENROLLMENT_CACHE_KEY);
   }
 
   async findAll(
@@ -23,18 +61,14 @@ export class EnrollmentService {
     sortCriteria: SortCriteria,
     pagination: Pagination,
   ) {
-    const key = this.redisService.hashKey('enrollments', {
-      ...queries,
-      ...sortCriteria,
-      ...pagination,
-    });
-
-    const cacheData =
-      await this.redisService.getCachedData<EnrollmentDocument>(key);
-    if (cacheData) return cacheData;
-
+    if (queries.studentId) {
+      queries.studentId = new Types.ObjectId(queries.studentId);
+    }
     const sortField = sortCriteria.sortBy ?? 'enrollmentDate';
-    const sortOrder = sortCriteria.order === 'desc' ? -1 : 1;
+    const sortOrder =
+      sortCriteria.order === 'ascending' || sortCriteria.order === 'asc'
+        ? 1
+        : -1;
 
     const page = pagination.page ?? 1;
     const limit = pagination.limit ?? 10;
@@ -43,6 +77,7 @@ export class EnrollmentService {
     const [enrollments, total] = await Promise.all([
       this.enrollmentModel
         .find(queries)
+        .populate('studentId', 'firstName lastName email image')
         .sort({ [sortField]: sortOrder })
         .skip(skip)
         .limit(limit),
@@ -54,38 +89,20 @@ export class EnrollmentService {
       totalItems: total,
       totalPage: Math.ceil(total / limit),
     };
-
-    if (enrollments.length)
-      this.redisService.cacheData({
-        key: key,
-        data: response,
-        ttl: 30,
-      });
-
     return response;
   }
 
   async findByStudentId(
     studentId: Types.ObjectId,
-    queries: EnrollmentQueries,
+    status: string,
     sortCriteria: SortCriteria,
     pagination: Pagination,
   ) {
-    const key = this.redisService.hashKey('enrollments', {
-      ...queries,
-      ...sortCriteria,
-      ...pagination,
-    });
-
-    const cacheData = await this.redisService.getCachedData<{
-      data: EnrollmentDocument[];
-      totalPages: number;
-      totalItems: number;
-    }>(key);
-    if (cacheData) return cacheData;
-
     const sortField = sortCriteria.sortBy ?? 'enrollmentDate';
-    const sortOrder = sortCriteria.order === 'desc' ? -1 : 1;
+    const sortOrder =
+      sortCriteria.order === 'ascending' || sortCriteria.order === 'asc'
+        ? 1
+        : -1;
 
     const page = pagination.page ?? 1;
     const limit = pagination.limit ?? 10;
@@ -94,8 +111,8 @@ export class EnrollmentService {
     const [enrollments, total] = await Promise.all([
       this.enrollmentModel
         .find({
-          studentId: new Types.ObjectId(studentId),
-          ...queries,
+          studentId: studentId,
+          ...(status ? { status: status } : {}),
         })
         .populate({
           path: 'courseId',
@@ -113,7 +130,7 @@ export class EnrollmentService {
         .sort({ [sortField]: sortOrder })
         .skip(skip)
         .limit(limit),
-      this.enrollmentModel.countDocuments({ studentId: studentId, ...queries }),
+      this.enrollmentModel.countDocuments({ studentId: studentId }),
     ]);
 
     const response = {
@@ -122,17 +139,50 @@ export class EnrollmentService {
       totalPage: Math.ceil(total / limit),
     };
 
-    if (enrollments.length)
-      this.redisService.cacheData({
-        key: key,
-        data: response,
-        ttl: 30,
-      });
+    const group = await this.groupByEnrollmentStatus(studentId);
 
-    return response;
+    return {
+      ...response,
+      groupByEnrollmentStatus: group,
+    };
+  }
+
+  async groupByEnrollmentStatus(studentId: Types.ObjectId) {
+    const result = await this.enrollmentModel.aggregate([
+      {
+        $match: { studentId: studentId },
+      },
+      {
+        $group: {
+          _id: '$status',
+          count: { $sum: 1 },
+        },
+      },
+      {
+        $project: {
+          status: '$_id',
+          count: 1,
+          _id: 0,
+        },
+      },
+    ]);
+
+    // Ensure all status types are included with default count of 0
+    const statusTypes = ['IN PROGRESS', 'NOT PASSED', 'PASSED'];
+    const completeResult = statusTypes.map((status) => {
+      const found = result.find((item) => item.status === status);
+      return {
+        status,
+        count: found ? found.count : 0,
+      };
+    });
+
+    return completeResult;
   }
 
   async findOne(id: string) {
+    if (!isValidObjectId(id)) throw new WrongIdFormatException();
+
     const enrollment = await this.enrollmentModel
       .findById(id)
       .populate('studentId')
@@ -143,14 +193,106 @@ export class EnrollmentService {
     return enrollment;
   }
 
-  async update(id: string, updateEnrollmentDto: UpdateEnrollmentDto) {
-    const enrollment = await this.findOne(id);
+  async findAllByStudentId(studentId: Types.ObjectId) {
+    if (!isValidObjectId(studentId)) throw new WrongIdFormatException();
 
-    Object.assign(enrollment, updateEnrollmentDto);
-    return enrollment.save();
+    const enrollments = await this.enrollmentModel
+      .find({
+        studentId: studentId,
+      })
+      .populate({
+        path: 'courseId',
+        populate: [
+          {
+            path: 'subjectId',
+            select: 'subjectCode subjectName',
+          },
+          {
+            path: 'semesterId',
+            select: 'semesterName startDate endDate',
+          },
+        ],
+      });
+
+    return {
+      data: enrollments,
+      totalItems: enrollments.length,
+    };
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} enrollment`;
+  async update(id: string, updateEnrollmentDto: UpdateEnrollmentDto) {
+    if (!isValidObjectId(id)) throw new WrongIdFormatException();
+
+    try {
+      const enrollment = await this.enrollmentModel.findByIdAndUpdate(
+        id,
+        updateEnrollmentDto,
+        {
+          new: true,
+        },
+      );
+
+      if (!enrollment) throw new NotFoundException('Enrollment not found');
+
+      if (enrollment.grade.length > 0) {
+        const types: GradeDocument['type'][] = [
+          'progress test',
+          'assignment',
+          'practical exam',
+          'final exam',
+        ];
+        const hasAllGrade = types.every((type) =>
+          enrollment.grade.some(
+            (grade) => grade.type === type && grade.score !== null,
+          ),
+        );
+
+        if (hasAllGrade) {
+          // Calculate final grade using weighted average
+          const progressTest = enrollment.grade.find(
+            (g) => g.type === 'progress test',
+          );
+          const assignment = enrollment.grade.find(
+            (g) => g.type === 'assignment',
+          );
+          const practicalExam = enrollment.grade.find(
+            (g) => g.type === 'practical exam',
+          );
+          const finalExam = enrollment.grade.find(
+            (g) => g.type === 'final exam',
+          );
+
+          const finalGrade =
+            progressTest!.score * progressTest!.weight +
+            assignment!.score * assignment!.weight +
+            practicalExam!.score * practicalExam!.weight +
+            finalExam!.score * finalExam!.weight;
+
+          enrollment.finalGrade = finalGrade;
+          enrollment.status = finalGrade >= 5.0 ? 'PASSED' : 'NOT PASSED';
+        } else {
+          enrollment.status = 'IN PROGRESS';
+        }
+        await enrollment.save();
+      }
+
+      await this.clearCache();
+      return enrollment;
+    } catch (error) {
+      throw new NotFoundException(error.message);
+    }
+  }
+
+  async remove(id: string) {
+    if (!isValidObjectId(id)) throw new WrongIdFormatException();
+    try {
+      const enrollment = await this.enrollmentModel.findByIdAndDelete(id);
+      if (!enrollment) throw new NotFoundException('Enrollment not found');
+      await this.attendanceService.deleteMany(enrollment._id);
+      await this.clearCache();
+      return enrollment;
+    } catch (error) {
+      throw new NotFoundException(error.message);
+    }
   }
 }

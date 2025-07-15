@@ -3,13 +3,16 @@ import {
   InternalServerErrorException,
   Logger,
 } from '@nestjs/common';
-import { ChatAgent } from './agents';
+import { AnalysisAgent, ChatAgent } from './agents';
 import { AskDto } from './dto';
 
 @Injectable()
 export class AiService {
   private readonly logger = new Logger(AiService.name);
-  constructor(private readonly chatAgent: ChatAgent) {}
+  constructor(
+    private readonly chatAgent: ChatAgent,
+    private readonly analysisAgent: AnalysisAgent,
+  ) {}
 
   async ask(askDto: AskDto, studentId: string) {
     try {
@@ -20,5 +23,9 @@ export class AiService {
         `Sorry, an error occurred while processing your request. Please try again later.`,
       );
     }
+  }
+
+  async analysis(askDto: AskDto, enrollmentInfo: string) {
+    return await this.analysisAgent.analyze(askDto, enrollmentInfo);
   }
 }

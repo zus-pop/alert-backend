@@ -1,17 +1,17 @@
 import {
-  Controller,
-  Get,
-  Post,
   Body,
-  Patch,
-  Param,
+  Controller,
   Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
   Query,
 } from '@nestjs/common';
-import { SystemUserService } from './system-user.service';
+import { Pagination, SortCriteria } from '../../shared/dto';
 import { CreateSystemUserDto, UpdateSystemUserDto } from './dto';
 import { SystemUserQueries } from './dto/system-user.queries.dto';
-import { Pagination, SortCriteria } from '../../shared/dto';
+import { SystemUserService } from './system-user.service';
 
 @Controller('system-users')
 export class SystemUserController {

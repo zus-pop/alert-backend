@@ -1,18 +1,18 @@
 import {
-  Controller,
-  Get,
-  Post,
   Body,
-  Patch,
-  Param,
+  Controller,
   Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
   Query,
 } from '@nestjs/common';
-import { SubjectService } from './subject.service';
-import { CreateSubjectDto, SubjectQueries, UpdateSubjectDto } from './dto';
 import { Pagination, SortCriteria } from '../../shared/dto';
+import { CreateSubjectDto, SubjectQueries, UpdateSubjectDto } from './dto';
+import { SubjectService } from './subject.service';
 
-@Controller('subject')
+@Controller('subjects')
 export class SubjectController {
   constructor(private readonly subjectService: SubjectService) {}
 

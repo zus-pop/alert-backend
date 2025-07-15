@@ -26,8 +26,9 @@ export class Attendance {
 
   @Prop({
     required: true,
+    default: 'NOT YET',
   })
-  enrollmentDate: Date;
+  status: 'NOT YET' | 'ATTENDED' | 'ABSENT';
 }
 
 export const AttendanceSchema = SchemaFactory.createForClass(Attendance);

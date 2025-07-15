@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpException,
   HttpStatus,
+  Patch,
   Post,
   Query,
   Res,
@@ -37,8 +38,10 @@ import {
   GoogleAuthGuard,
   RefreshTokenAuthGuard,
 } from './guards';
+import { CacheTTL } from '@nestjs/cache-manager';
 
 @Controller('auth')
+@CacheTTL(1)
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
@@ -58,7 +61,7 @@ export class AuthController {
     return this.authService.whoAmI(me);
   }
 
-  @Post('me')
+  @Patch('me')
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     type: ProfileDto,
@@ -108,23 +111,20 @@ export class AuthController {
   @Post('deviceToken')
   @ApiBearerAuth()
   @UseGuards(AccessTokenAuthGuard)
-  async addDeviceToken(
-    @WhoAmI() me: StudentDocument,
-    @Body() data: PushTokenDto,
-  ) {
+  async addDeviceToken(@WhoAmI() me: PayloadDto, @Body() data: PushTokenDto) {
     const { token } = data;
-    return this.authService.addDeviceToken(me._id.toString(), token);
+    return this.authService.addDeviceToken(me.sub, token);
   }
 
   @Delete('deviceToken')
   @ApiBearerAuth()
   @UseGuards(AccessTokenAuthGuard)
   async removeDeviceToken(
-    @WhoAmI() me: StudentDocument,
+    @WhoAmI() me: PayloadDto,
     @Query() data: PushTokenDto,
   ) {
     const { token } = data;
-    return this.authService.removeDeviceToken(me._id.toString(), token);
+    return this.authService.removeDeviceToken(me.sub, token);
   }
 
   @Get('google')

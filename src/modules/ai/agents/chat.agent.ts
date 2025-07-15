@@ -1,5 +1,9 @@
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
-import { BaseMessage, HumanMessage } from '@langchain/core/messages';
+import {
+  BaseMessage,
+  HumanMessage,
+  trimMessages,
+} from '@langchain/core/messages';
 import {
   ChatPromptTemplate,
   MessagesPlaceholder,
@@ -51,10 +55,20 @@ export class ChatAgent {
       new MessagesPlaceholder('messages'),
     ]);
 
+    const trimmer = trimMessages({
+      maxTokens: 12,
+      strategy: 'last',
+      tokenCounter: (msgs) => msgs.length,
+      includeSystem: true,
+      allowPartial: false,
+      startOn: 'human',
+    });
+
     const retrieveStudentData = async (state: typeof StateAnnotation.State) => {
       const studentData = await this.studentService.retrieveStudentDataById(
         state.studentId,
       );
+
       return {
         ...state,
         studentInfo: JSON.stringify(studentData),
@@ -62,7 +76,12 @@ export class ChatAgent {
     };
 
     const callModel = async (state: typeof StateAnnotation.State) => {
-      const prompt = await promptTemplate.invoke(state);
+      const trimmedMessages = await trimmer.invoke(state.messages);
+      const prompt = await promptTemplate.invoke({
+        messages: trimmedMessages,
+        studentInfo: state.studentInfo,
+        studentId: state.studentId,
+      });
       const response = await this.llm.invoke(prompt);
       return { messages: [response] };
     };
