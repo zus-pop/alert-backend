@@ -1,7 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
 import { Course } from './course.schema';
-import { Student, StudentDocument } from './student.schema';
+import { StudentDocument } from './student.schema';
 
 export type EnrollmentDocument = HydratedDocument<Enrollment>;
 export type GradeDocument = HydratedDocument<Grade>;
@@ -13,9 +13,8 @@ class Grade {
   @Prop({
     required: true,
     type: String,
-    enum: ['progress test', 'assignment', 'practical exam', 'final exam'],
   })
-  type: 'progress test' | 'assignment' | 'practical exam' | 'final exam';
+  type: string;
   @Prop({})
   score: number;
   @Prop({})

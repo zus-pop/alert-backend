@@ -1,27 +1,29 @@
 import {
   BadRequestException,
+  forwardRef,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectConnection, InjectModel } from '@nestjs/mongoose';
-import { Connection, isValidObjectId, Model, Types } from 'mongoose';
+import { InjectModel } from '@nestjs/mongoose';
+import { isValidObjectId, Model, Types } from 'mongoose';
 import { ENROLLMENT_CACHE_KEY } from '../../shared/constant';
 import { Pagination, SortCriteria } from '../../shared/dto';
 import { WrongIdFormatException } from '../../shared/exceptions';
 import { RedisService } from '../../shared/redis/redis.service';
-import { Enrollment, GradeDocument } from '../../shared/schemas';
+import { Enrollment } from '../../shared/schemas';
+import { AttendanceService } from '../attendance/attendance.service';
+import { SessionService } from '../session/session.service';
 import { EnrollmentQueries } from './dto';
 import { CreateEnrollmentDto } from './dto/create-enrollment.dto';
 import { UpdateEnrollmentDto } from './dto/update-enrollment.dto';
-import { SessionService } from '../session/session.service';
-import { AttendanceService } from '../attendance/attendance.service';
 
 @Injectable()
 export class EnrollmentService {
   constructor(
     private readonly redisService: RedisService,
     @InjectModel(Enrollment.name) private enrollmentModel: Model<Enrollment>,
-
+    @Inject(forwardRef(() => AttendanceService))
     private readonly attendanceService: AttendanceService,
     private readonly sessionService: SessionService,
   ) {}
@@ -45,6 +47,31 @@ export class EnrollmentService {
         enrollment._id,
         sessions.map((session) => session._id),
       );
+
+      if (enrollment.grade.length > 0) {
+        const hasAllGrades = enrollment.grade.every(
+          (grade) => grade.score !== null,
+        );
+
+        const totalWeight = enrollment.grade.reduce(
+          (sum, grade) => sum + grade.weight,
+          0,
+        );
+
+        if (hasAllGrades && Math.abs(totalWeight - 1) < Number.EPSILON) {
+          const finalGrade = enrollment.grade.reduce(
+            (sum, grade) => sum + grade.score! * grade.weight,
+            0,
+          );
+
+          enrollment.finalGrade = finalGrade;
+          enrollment.status = finalGrade >= 5.0 ? 'PASSED' : 'NOT PASSED';
+        } else {
+          enrollment.status = 'IN PROGRESS';
+        }
+        await enrollment.save();
+      }
+
       await this.clearCache();
       return enrollment;
     } catch (error) {
@@ -220,6 +247,24 @@ export class EnrollmentService {
     };
   }
 
+  async updateNotPassedIfOverAbsenteeismRate(enrollmentId: Types.ObjectId) {
+    const isOverAbsenteeismRate =
+      await this.attendanceService.checkAbsenteeismRate(enrollmentId);
+
+    if (isOverAbsenteeismRate) {
+      await this.enrollmentModel.findByIdAndUpdate(
+        enrollmentId,
+        {
+          status: 'NOT PASSED',
+        },
+        {
+          new: true,
+        },
+      );
+      await this.clearCache();
+    }
+  }
+
   async update(id: string, updateEnrollmentDto: UpdateEnrollmentDto) {
     if (!isValidObjectId(id)) throw new WrongIdFormatException();
 
@@ -234,39 +279,31 @@ export class EnrollmentService {
 
       if (!enrollment) throw new NotFoundException('Enrollment not found');
 
+      const isOverAbsenteeismRate =
+        await this.attendanceService.checkAbsenteeismRate(enrollment._id);
+
+      if (isOverAbsenteeismRate) {
+        enrollment.status = 'NOT PASSED';
+        await enrollment.save();
+        await this.clearCache();
+        return enrollment;
+      }
+
       if (enrollment.grade.length > 0) {
-        const types: GradeDocument['type'][] = [
-          'progress test',
-          'assignment',
-          'practical exam',
-          'final exam',
-        ];
-        const hasAllGrade = types.every((type) =>
-          enrollment.grade.some(
-            (grade) => grade.type === type && grade.score !== null,
-          ),
+        const hasAllGrades = enrollment.grade.every(
+          (grade) => grade.score !== null,
         );
 
-        if (hasAllGrade) {
-          // Calculate final grade using weighted average
-          const progressTest = enrollment.grade.find(
-            (g) => g.type === 'progress test',
-          );
-          const assignment = enrollment.grade.find(
-            (g) => g.type === 'assignment',
-          );
-          const practicalExam = enrollment.grade.find(
-            (g) => g.type === 'practical exam',
-          );
-          const finalExam = enrollment.grade.find(
-            (g) => g.type === 'final exam',
-          );
+        const totalWeight = enrollment.grade.reduce(
+          (sum, grade) => sum + grade.weight,
+          0,
+        );
 
-          const finalGrade =
-            progressTest!.score * progressTest!.weight +
-            assignment!.score * assignment!.weight +
-            practicalExam!.score * practicalExam!.weight +
-            finalExam!.score * finalExam!.weight;
+        if (hasAllGrades && Math.abs(totalWeight - 1) < Number.EPSILON) {
+          const finalGrade = enrollment.grade.reduce(
+            (sum, grade) => sum + grade.score! * grade.weight,
+            0,
+          );
 
           enrollment.finalGrade = finalGrade;
           enrollment.status = finalGrade >= 5.0 ? 'PASSED' : 'NOT PASSED';
