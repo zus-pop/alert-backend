@@ -68,6 +68,7 @@ export class EnrollmentService {
           enrollment.status = finalGrade >= 5.0 ? 'PASSED' : 'NOT PASSED';
         } else {
           enrollment.status = 'IN PROGRESS';
+          enrollment.finalGrade = undefined;
         }
         await enrollment.save();
       }
@@ -282,13 +283,6 @@ export class EnrollmentService {
       const isOverAbsenteeismRate =
         await this.attendanceService.checkAbsenteeismRate(enrollment._id);
 
-      if (isOverAbsenteeismRate) {
-        enrollment.status = 'NOT PASSED';
-        await enrollment.save();
-        await this.clearCache();
-        return enrollment;
-      }
-
       if (enrollment.grade.length > 0) {
         const hasAllGrades = enrollment.grade.every(
           (grade) => grade.score !== null,
@@ -306,9 +300,14 @@ export class EnrollmentService {
           );
 
           enrollment.finalGrade = finalGrade;
-          enrollment.status = finalGrade >= 5.0 ? 'PASSED' : 'NOT PASSED';
+          enrollment.status =
+            finalGrade >= 5.0 && !isOverAbsenteeismRate
+              ? 'PASSED'
+              : 'NOT PASSED';
         } else {
-          enrollment.status = 'IN PROGRESS';
+          if (isOverAbsenteeismRate) enrollment.status = 'NOT PASSED';
+          else enrollment.status = 'IN PROGRESS';
+          enrollment.finalGrade = undefined;
         }
         await enrollment.save();
       }
