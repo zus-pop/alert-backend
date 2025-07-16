@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { isValidObjectId, Model, Types } from 'mongoose';
-import { ENROLLMENT_CACHE_KEY } from '../../shared/constant';
+import { ENROLLMENT_CACHE_KEY, STUDENT_CACHE_KEY } from '../../shared/constant';
 import { Pagination, SortCriteria } from '../../shared/dto';
 import { WrongIdFormatException } from '../../shared/exceptions';
 import { RedisService } from '../../shared/redis/redis.service';
@@ -82,6 +82,7 @@ export class EnrollmentService {
 
   async clearCache() {
     await this.redisService.clearCache(ENROLLMENT_CACHE_KEY);
+    await this.redisService.clearCache(STUDENT_CACHE_KEY);
   }
 
   async findAll(
