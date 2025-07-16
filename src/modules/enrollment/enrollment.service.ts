@@ -252,18 +252,17 @@ export class EnrollmentService {
     const isOverAbsenteeismRate =
       await this.attendanceService.checkAbsenteeismRate(enrollmentId);
 
-    if (isOverAbsenteeismRate) {
-      await this.enrollmentModel.findByIdAndUpdate(
-        enrollmentId,
-        {
-          status: 'NOT PASSED',
-        },
-        {
-          new: true,
-        },
-      );
-      await this.clearCache();
-    }
+    const status = isOverAbsenteeismRate ? 'NOT PASSED' : 'IN PROGRESS';
+    await this.enrollmentModel.findByIdAndUpdate(
+      enrollmentId,
+      {
+        status: status,
+      },
+      {
+        new: true,
+      },
+    );
+    await this.clearCache();
   }
 
   async update(id: string, updateEnrollmentDto: UpdateEnrollmentDto) {
