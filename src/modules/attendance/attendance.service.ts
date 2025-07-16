@@ -1,11 +1,18 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  forwardRef,
+  Inject,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { DeleteResult, isValidObjectId, Model, Types } from 'mongoose';
 import { ATTENDANCE_CACHE_KEY } from '../../shared/constant';
 import { Pagination, SortCriteria } from '../../shared/dto';
 import { WrongIdFormatException } from '../../shared/exceptions';
 import { RedisService } from '../../shared/redis/redis.service';
-import { Attendance } from '../../shared/schemas';
+import { Attendance, Enrollment } from '../../shared/schemas';
+import { EnrollmentService } from '../enrollment/enrollment.service';
 import { AttendanceQueries } from './dto';
 import { CreateAttendanceDto } from './dto/create-attendance.dto';
 import { UpdateAttendanceDto } from './dto/update-attendance.dto';
@@ -16,6 +23,8 @@ export class AttendanceService {
   constructor(
     private readonly redisService: RedisService,
     @InjectModel(Attendance.name) private attendanceModel: Model<Attendance>,
+    @Inject(forwardRef(() => EnrollmentService))
+    private readonly enrollmentService: EnrollmentService,
   ) {}
 
   async clearCache() {
@@ -109,6 +118,21 @@ export class AttendanceService {
     return attendances;
   }
 
+  async checkAbsenteeismRate(enrollmentId: Types.ObjectId): Promise<boolean> {
+    const attendances = await this.findByEnrollmentId(enrollmentId);
+
+    if (attendances.length === 0) {
+      return false;
+    }
+
+    const absentCount = attendances.filter(
+      (attendance) => attendance.status === 'ABSENT',
+    ).length;
+    const absenteeismRate = absentCount / attendances.length;
+
+    return absenteeismRate >= 0.2;
+  }
+
   async findOne(id: string) {
     if (!isValidObjectId(id)) throw new WrongIdFormatException();
 
@@ -124,15 +148,16 @@ export class AttendanceService {
   async update(id: string, updateAttendanceDto: UpdateAttendanceDto) {
     if (!isValidObjectId(id)) throw new WrongIdFormatException();
 
-    const attendance = await this.attendanceModel.findByIdAndUpdate(
-      id,
-      updateAttendanceDto,
-      { new: true },
-    );
+    const attendance = await this.attendanceModel
+      .findByIdAndUpdate(id, updateAttendanceDto, { new: true })
 
     if (!attendance) {
       throw new BadRequestException(`Attendance with id ${id} not found`);
     }
+
+    await this.enrollmentService.updateNotPassedIfOverAbsenteeismRate(
+      new Types.ObjectId(attendance.enrollmentId.toString()),
+    );
 
     await this.clearCache();
 

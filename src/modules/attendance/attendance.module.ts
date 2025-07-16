@@ -1,8 +1,14 @@
-import { Module } from '@nestjs/common';
-import { AttendanceService } from './attendance.service';
-import { AttendanceController } from './attendance.controller';
+import { forwardRef, Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { Attendance, AttendanceSchema } from '../../shared/schemas';
+import {
+  Attendance,
+  AttendanceSchema,
+  Enrollment,
+  EnrollmentSchema,
+} from '../../shared/schemas';
+import { AttendanceController } from './attendance.controller';
+import { AttendanceService } from './attendance.service';
+import { EnrollmentModule } from '../enrollment/enrollment.module';
 
 @Module({
   imports: [
@@ -11,7 +17,12 @@ import { Attendance, AttendanceSchema } from '../../shared/schemas';
         name: Attendance.name,
         schema: AttendanceSchema,
       },
+      {
+        name: Enrollment.name,
+        schema: EnrollmentSchema,
+      },
     ]),
+    forwardRef(() => EnrollmentModule),
   ],
   controllers: [AttendanceController],
   providers: [AttendanceService],

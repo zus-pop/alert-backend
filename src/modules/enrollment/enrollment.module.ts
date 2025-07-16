@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Enrollment, EnrollmentSchema } from '../../shared/schemas';
 import { AttendanceModule } from '../attendance/attendance.module';
@@ -14,8 +14,8 @@ import { EnrollmentService } from './enrollment.service';
         schema: EnrollmentSchema,
       },
     ]),
-    AttendanceModule,
     SessionModule,
+    forwardRef(() => AttendanceModule),
   ],
   controllers: [EnrollmentController],
   providers: [EnrollmentService],
