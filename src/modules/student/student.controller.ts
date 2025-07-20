@@ -1,14 +1,14 @@
 import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  HttpCode,
-  HttpStatus,
-  Param,
-  Patch,
-  Post,
-  Query,
+    Body,
+    Controller,
+    Delete,
+    Get,
+    HttpCode,
+    HttpStatus,
+    Param,
+    Patch,
+    Post,
+    Query,
 } from '@nestjs/common';
 import { ApiQuery, ApiTags } from '@nestjs/swagger';
 import { Types } from 'mongoose';
@@ -17,7 +17,6 @@ import { SortCriteria } from '../../shared/dto/sort.dto';
 import { CreateStudentDto, UpdateStudentDto } from './dto';
 import { StudentQueries } from './dto/student.queries.dto';
 import { StudentService } from './student.service';
-import { EnrollmentQueries } from '../enrollment/dto';
 
 @ApiTags('Students')
 @Controller('students')
@@ -50,15 +49,22 @@ export class StudentController {
     enum: ['IN PROGRESS', 'NOT PASSED', 'PASSED'],
     required: false,
   })
+  @ApiQuery({
+    name: 'semesterId',
+    type: String,
+    required: false,
+  })
   async findEnrollmentsByStudentId(
     @Param('studentId') studentId: string,
     @Query('status') status: string,
+    @Query('semesterId') semesterId: string,
     @Query() sortCriteria: SortCriteria,
     @Query() pagination: Pagination,
   ) {
     return this.studentService.findEnrollmentsByStudentId(
       studentId,
       status,
+      semesterId ? new Types.ObjectId(semesterId) : undefined,
       sortCriteria,
       pagination,
     );

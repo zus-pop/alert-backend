@@ -1,8 +1,8 @@
 import {
-    BadRequestException,
-    Injectable,
-    Logger,
-    NotFoundException,
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { isValidObjectId, Model, Types } from 'mongoose';
@@ -14,7 +14,6 @@ import { Student, StudentDocument } from '../../shared/schemas';
 import { AttendanceService } from '../attendance/attendance.service';
 import { EnrollmentService } from '../enrollment/enrollment.service';
 import { CreateStudentDto, StudentQueries, UpdateStudentDto } from './dto';
-import { EnrollmentQueries } from '../enrollment/dto';
 
 @Injectable()
 export class StudentService {
@@ -33,8 +32,7 @@ export class StudentService {
 
   async getAllStudentIds() {
     const studentIds = await this.studentModel
-      .where({ isDeleted: false })
-      .find()
+      .find({ isDeleted: false })
       .select('_id');
 
     return studentIds;
@@ -50,6 +48,13 @@ export class StudentService {
       sortCriteria.order === 'ascending' || sortCriteria.order === 'asc'
         ? 1
         : -1;
+
+    if (queries.email) {
+      queries.email = {
+        $regex: queries.email,
+        $options: 'i',
+      };
+    }
 
     if (queries.firstName) {
       queries.firstName = {
@@ -71,13 +76,12 @@ export class StudentService {
 
     const [students, total] = await Promise.all([
       this.studentModel
-        .where({ isDeleted: false })
-        .select('-password -__v')
         .find(queries)
+        .select('-password -__v')
         .sort({ [sortField]: sortOrder })
         .skip(skip)
         .limit(limit),
-      this.studentModel.where({ isDeleted: false }).countDocuments(queries),
+      this.studentModel.countDocuments(queries),
     ]);
 
     const response = {
@@ -95,7 +99,6 @@ export class StudentService {
     }
 
     const student = await this.studentModel
-      .where({ isDeleted: false })
       .findById(id)
       .select('-password -__v');
 
@@ -152,6 +155,7 @@ export class StudentService {
   async findEnrollmentsByStudentId(
     id: string,
     status: string,
+    semesterId: Types.ObjectId | undefined,
     sortCriteria: SortCriteria,
     pagination: Pagination,
   ) {
@@ -160,6 +164,7 @@ export class StudentService {
     return await this.enrollmentService.findByStudentId(
       new Types.ObjectId(id),
       status,
+      semesterId,
       sortCriteria,
       pagination,
     );
@@ -205,9 +210,7 @@ export class StudentService {
   }
 
   async findByEmail(email: string) {
-    const student = await this.studentModel
-      .where({ isDeleted: false })
-      .findOne({ email: email });
+    const student = await this.studentModel.findOne({ email: email });
 
     if (!student) throw new NotFoundException('Student not found!');
 
@@ -216,13 +219,20 @@ export class StudentService {
 
   async create(createStudentDto: CreateStudentDto) {
     try {
-      const student = await this.studentModel.findOne({
+      const isExist = await this.studentModel.findOne({
         email: createStudentDto.email,
       });
 
-      if (student) throw new BadRequestException('Email existed');
+      if (isExist) throw new BadRequestException('Email existed');
+
+      const student = await this.studentModel.create({
+        ...createStudentDto,
+        majorId: new Types.ObjectId(createStudentDto.majorId),
+        comboId: new Types.ObjectId(createStudentDto.comboId),
+        curriculumId: new Types.ObjectId(createStudentDto.curriculumId),
+      });
       await this.clearCache();
-      return await this.studentModel.create(createStudentDto);
+      return student;
     } catch (error) {
       throw new BadRequestException(error.message);
     }
@@ -230,9 +240,43 @@ export class StudentService {
 
   async update(id: string, updateStudentDto: UpdateStudentDto) {
     try {
-      const student = await this.studentModel
-        .where({ isDeleted: false })
-        .findByIdAndUpdate(id, updateStudentDto, { new: true });
+      if (!isValidObjectId(id)) throw new WrongIdFormatException();
+
+      if (
+        updateStudentDto.majorId &&
+        !isValidObjectId(updateStudentDto.majorId)
+      )
+        throw new BadRequestException('Major ID is not valid');
+
+      if (
+        updateStudentDto.comboId &&
+        !isValidObjectId(updateStudentDto.comboId)
+      )
+        throw new BadRequestException('Combo ID is not valid');
+
+      if (
+        updateStudentDto.curriculumId &&
+        !isValidObjectId(updateStudentDto.curriculumId)
+      )
+        throw new BadRequestException('Curriculum ID is not valid');
+
+      if (updateStudentDto.majorId) {
+        updateStudentDto.majorId = new Types.ObjectId(updateStudentDto.majorId);
+      }
+      if (updateStudentDto.comboId) {
+        updateStudentDto.comboId = new Types.ObjectId(updateStudentDto.comboId);
+      }
+      if (updateStudentDto.curriculumId) {
+        updateStudentDto.curriculumId = new Types.ObjectId(
+          updateStudentDto.curriculumId,
+        );
+      }
+
+      const student = await this.studentModel.findByIdAndUpdate(
+        id,
+        updateStudentDto,
+        { new: true },
+      );
       if (!student) throw new BadRequestException('Student not found');
       await this.clearCache();
       return student;
@@ -245,13 +289,11 @@ export class StudentService {
     if (!isValidObjectId(id)) throw new WrongIdFormatException();
 
     try {
-      const result = await this.studentModel
-        .where({ isDeleted: false })
-        .findByIdAndUpdate(
-          id,
-          { isDeleted: true, deletedAt: new Date() },
-          { new: true },
-        );
+      const result = await this.studentModel.findByIdAndUpdate(
+        id,
+        { isDeleted: true, deletedAt: new Date() },
+        { new: true },
+      );
 
       if (!result) {
         throw new NotFoundException('Student not found!');

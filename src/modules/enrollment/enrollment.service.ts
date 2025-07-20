@@ -103,10 +103,92 @@ export class EnrollmentService {
     const limit = pagination.limit ?? 10;
     const skip = (page - 1) * limit;
 
+    // If semesterId is provided, use aggregation pipeline for nested filtering
+    if (queries.semesterId) {
+      const semesterObjectId = new Types.ObjectId(queries.semesterId);
+      // Build match conditions excluding semesterId
+      const matchConditions = { ...queries };
+      delete matchConditions.semesterId;
+
+      const [result] = await this.enrollmentModel.aggregate([
+        // Stage 1: Match enrollment-level conditions
+        { $match: matchConditions },
+
+        // Stage 2: Lookup course details
+        {
+          $lookup: {
+            from: 'course',
+            localField: 'courseId',
+            foreignField: '_id',
+            as: 'courseId',
+          },
+        },
+        { $unwind: '$courseId' },
+
+        // Stage 3: Filter by semesterId in the course
+        {
+          $match: {
+            'courseId.semesterId': semesterObjectId,
+          },
+        },
+
+        // Stage 4: Lookup student details
+        {
+          $lookup: {
+            from: 'student',
+            localField: 'studentId',
+            foreignField: '_id',
+            as: 'studentId',
+          },
+        },
+        { $unwind: '$studentId' },
+
+        // Stage 5: Project necessary fields
+        {
+          $project: {
+            _id: 1,
+            courseId: 1,
+            studentId: {
+              firstName: '$studentId.firstName',
+              lastName: '$studentId.lastName',
+              email: '$studentId.email',
+              image: '$studentId.image',
+            },
+            enrollmentDate: 1,
+            grade: 1,
+            status: 1,
+            finalGrade: 1,
+          },
+        },
+
+        // Stage 6: Use $facet for data and count
+        {
+          $facet: {
+            data: [
+              { $sort: { [sortField]: sortOrder } },
+              { $skip: skip },
+              { $limit: limit },
+            ],
+            totalCount: [{ $count: 'count' }],
+          },
+        },
+      ]);
+      const enrollments = result.data;
+      const total = result.totalCount[0]?.count || 0;
+
+      return {
+        data: enrollments,
+        totalItems: total,
+        totalPage: Math.ceil(total / limit),
+      };
+    }
+
+    // Original logic for non-semester filtering
     const [enrollments, total] = await Promise.all([
       this.enrollmentModel
         .find(queries)
         .populate('studentId', 'firstName lastName email image')
+        .populate('courseId')
         .sort({ [sortField]: sortOrder })
         .skip(skip)
         .limit(limit),
@@ -124,6 +206,7 @@ export class EnrollmentService {
   async findByStudentId(
     studentId: Types.ObjectId,
     status: string,
+    semesterId: Types.ObjectId | undefined,
     sortCriteria: SortCriteria,
     pagination: Pagination,
   ) {
@@ -137,30 +220,112 @@ export class EnrollmentService {
     const limit = pagination.limit ?? 10;
     const skip = (page - 1) * limit;
 
-    const [enrollments, total] = await Promise.all([
-      this.enrollmentModel
-        .find({
-          studentId: studentId,
-          ...(status ? { status: status } : {}),
-        })
-        .populate({
-          path: 'courseId',
-          populate: [
+    const rootMatch: {
+      studentId: Types.ObjectId;
+      status?: string;
+      semesterId?: Types.ObjectId;
+    } = { studentId: studentId };
+
+    if (status) {
+      rootMatch.status = status;
+    }
+
+    const result = await this.enrollmentModel.aggregate([
+      { $match: rootMatch },
+
+      {
+        $lookup: {
+          from: 'course',
+          localField: 'courseId',
+          foreignField: '_id',
+          as: 'courseId',
+        },
+      },
+      { $unwind: '$courseId' },
+
+      ...(semesterId
+        ? [
             {
-              path: 'subjectId',
-              select: 'subjectCode subjectName',
+              $match: {
+                'courseId.semesterId': semesterId,
+              },
             },
-            {
-              path: 'semesterId',
-              select: 'semesterName startDate endDate',
-            },
-          ],
-        })
-        .sort({ [sortField]: sortOrder })
-        .skip(skip)
-        .limit(limit),
-      this.enrollmentModel.countDocuments({ studentId: studentId }),
+          ]
+        : []),
+
+      {
+        $lookup: {
+          from: 'subject',
+          localField: 'courseId.subjectId',
+          foreignField: '_id',
+          as: 'courseId.subjectId',
+        },
+      },
+      { $unwind: '$courseId.subjectId' },
+
+      {
+        $lookup: {
+          from: 'semester',
+          localField: 'courseId.semesterId',
+          foreignField: '_id',
+          as: 'courseId.semesterId',
+        },
+      },
+      { $unwind: '$courseId.semesterId' },
+
+      {
+        $lookup: {
+          from: 'student',
+          localField: 'studentId',
+          foreignField: '_id',
+          as: 'studentId',
+        },
+      },
+      {
+        $unwind: '$studentId',
+      },
+
+      {
+        $project: {
+          _id: 1,
+          courseId: {
+            _id: '$courseId._id',
+            subjectId: '$courseId.subjectId',
+            semesterId: '$courseId.semesterId',
+          },
+          studentId: {
+            firstName: '$studentId.firstName',
+            lastName: '$studentId.lastName',
+            email: '$studentId.email',
+            image: '$studentId.image',
+          },
+          enrollmentDate: 1,
+          grade: 1,
+          status: 1,
+          finalGrade: 1,
+        },
+      },
+
+      {
+        $sort: { [sortField]: sortOrder },
+      },
+      {
+        $skip: skip,
+      },
+      {
+        $limit: limit,
+      },
+
+      {
+        $facet: {
+          data: [{ $sort: { [sortField]: sortOrder } }],
+          totalCount: [{ $count: 'count' }],
+        },
+      },
     ]);
+
+    const enrollments = result[0].data;
+    const total = result[0].totalCount[0]?.count || 0;
 
     const response = {
       data: enrollments,

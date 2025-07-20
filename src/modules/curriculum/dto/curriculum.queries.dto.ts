@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsOptional, IsString } from 'class-validator';
+import { Types } from 'mongoose';
 
 export class CurriculumQueries {
   @IsString()
@@ -17,5 +18,5 @@ export class CurriculumQueries {
     description: 'Filter by curriculum code',
     required: false,
   })
-  comboId?: string;
+  comboId?: string | Types.ObjectId;
 }
