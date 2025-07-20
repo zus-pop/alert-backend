@@ -3,17 +3,17 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectConnection, InjectModel } from '@nestjs/mongoose';
-import { Connection, isValidObjectId, Model, Types } from 'mongoose';
+import { InjectModel } from '@nestjs/mongoose';
+import { isValidObjectId, Model, Types } from 'mongoose';
+import { COURSE_CACHE_KEY } from '../../shared/constant';
 import { Pagination, SortCriteria } from '../../shared/dto';
+import { WrongIdFormatException } from '../../shared/exceptions';
 import { RedisService } from '../../shared/redis/redis.service';
 import { Course } from '../../shared/schemas';
 import { SessionService } from '../session/session.service';
 import { CourseQueries } from './dto/course.queries.dto';
 import { CreateCourseDto } from './dto/create-course.dto';
 import { UpdateCourseDto } from './dto/update-course.dto';
-import { COURSE_CACHE_KEY } from '../../shared/constant';
-import { WrongIdFormatException } from '../../shared/exceptions';
 
 @Injectable()
 export class CourseService {
@@ -37,7 +37,11 @@ export class CourseService {
       );
 
     try {
-      const course = await this.courseModel.create(createCourseDto);
+      const course = await this.courseModel.create({
+        ...createCourseDto,
+        semesterId: new Types.ObjectId(createCourseDto.semesterId),
+        subjectId: new Types.ObjectId(createCourseDto.subjectId),
+      });
 
       await this.sessionService.createManySessionByCourseId(course._id);
       await this.clearCache();

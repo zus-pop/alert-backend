@@ -1,5 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
+import { HydratedDocument, Types } from 'mongoose';
+import { Major } from './major.schema';
+import { Combo } from './combo.schema';
 
 export type StudentDocument = HydratedDocument<Student>;
 
@@ -58,6 +60,27 @@ export class Student {
     type: [String],
   })
   deviceTokens: string[];
+
+  @Prop({
+    required: false,
+    type: Types.ObjectId,
+    ref: 'Major',
+  })
+  majorId: Major;
+
+  @Prop({
+    required: false,
+    type: Types.ObjectId,
+    ref: 'Combo',
+  })
+  comboId: Combo;
+
+  @Prop({
+    required: false,
+    type: Number,
+    default: 0,
+  })
+  learnedSemester: number;
 
   @Prop({
     required: false,

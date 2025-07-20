@@ -21,6 +21,14 @@ export class EnrollmentQueries {
 
   @IsString()
   @IsOptional()
+  @ApiProperty({
+    required: false,
+    type: String,
+  })
+  semesterId?: string;
+
+  @IsString()
+  @IsOptional()
   @IsIn(['IN PROGRESS', 'NOT PASSED', 'PASSED'])
   @ApiProperty({
     required: false,

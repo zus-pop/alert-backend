@@ -23,6 +23,12 @@ export class CurriculumCourse {
     required: true,
   })
   subjectId: Subject | Types.ObjectId;
+
+  @Prop({
+    required: true,
+    type: Number,
+  })
+  semesterNumber: number;
 }
 
 export const CurriculumCourseSchema =

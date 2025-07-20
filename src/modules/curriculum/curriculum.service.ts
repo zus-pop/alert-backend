@@ -80,6 +80,10 @@ export class CurriculumService {
     const limit = pagination.limit ?? 10;
     const skip = (page - 1) * limit;
 
+    if (queries.comboId) {
+      queries.comboId = new Types.ObjectId(queries.comboId);
+    }
+
     const [curriculums, total] = await Promise.all([
       this.curriculumModel
         .find(queries)
@@ -109,7 +113,10 @@ export class CurriculumService {
             (subject) =>
               subject.curriculumId.toString() === curriculum._id.toString(),
           )
-          .map((subject) => subject.subjectId),
+          .map((subject) => ({
+            ...subject.subjectId,
+            semesterNumber: subject.semesterNumber,
+          })),
       })),
       totalItems: total,
       totalPage: Math.ceil(total / limit),
@@ -135,7 +142,10 @@ export class CurriculumService {
       });
     return {
       ...curriculum.toObject(),
-      subjects: subjects.map((subject) => subject.subjectId),
+      subjects: subjects.map((subject) => ({
+        ...subject.subjectId,
+        semesterNumber: subject.semesterNumber,
+      })),
     };
   }
 
