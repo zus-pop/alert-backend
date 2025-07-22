@@ -34,8 +34,8 @@ export class CurriculumService {
       throw new BadRequestException('Combo ID is not valid');
 
     if (
-      createCurriculumDto.subjectIds.length &&
-      !createCurriculumDto.subjectIds.some(isValidObjectId)
+      createCurriculumDto.subjects.length &&
+      !createCurriculumDto.subjects.some((s) => isValidObjectId(s.subjectId))
     )
       throw new BadRequestException('One or more subject IDs are not valid');
 
@@ -45,9 +45,10 @@ export class CurriculumService {
         curriculumName: createCurriculumDto.curriculumName,
       });
 
-      const subjects = createCurriculumDto.subjectIds.map((subjectId) => ({
+      const subjects = createCurriculumDto.subjects.map((s) => ({
         curriculumId: curriculum._id,
-        subjectId: new Types.ObjectId(subjectId),
+        subjectId: new Types.ObjectId(s.subjectId),
+        semesterNumber: s.semesterNumber,
       }));
 
       await this.curriculumCourseModel.insertMany(subjects);
@@ -160,9 +161,9 @@ export class CurriculumService {
       throw new BadRequestException('Combo ID is not valid');
 
     if (
-      updateCurriculumDto.subjectIds &&
-      updateCurriculumDto.subjectIds.length &&
-      !updateCurriculumDto.subjectIds.some(isValidObjectId)
+      updateCurriculumDto.subjects &&
+      updateCurriculumDto.subjects.length &&
+      !updateCurriculumDto.subjects.some((s) => isValidObjectId(s.subjectId))
     )
       throw new BadRequestException('One or more subject IDs are not valid');
 
@@ -185,37 +186,51 @@ export class CurriculumService {
 
     if (!curriculum) throw new BadRequestException('Curriculum not found');
 
-    if (updateCurriculumDto.subjectIds) {
+    if (updateCurriculumDto.subjects) {
       const existingSubjects = await this.curriculumCourseModel
         .find({
           curriculumId: curriculum._id,
         })
-        .select('subjectId');
+        .select('subjectId semesterNumber');
 
-      const existingSubjectIds = existingSubjects.map((subject) =>
-        subject.subjectId.toString(),
-      );
+      const existingSubjectIds = existingSubjects.map((subject) => ({
+        subjectId: subject.subjectId.toString(),
+        semesterNumber: subject.semesterNumber,
+      }));
 
-      const newSubjectIds = updateCurriculumDto.subjectIds;
+      const newSubjectIds = updateCurriculumDto.subjects;
 
       const toAdd = newSubjectIds.filter(
-        (subjectId) => !existingSubjectIds.includes(subjectId),
+        (ns) =>
+          !existingSubjectIds.some(
+            (es) =>
+              es.subjectId === ns.subjectId &&
+              es.semesterNumber === ns.semesterNumber,
+          ),
       );
       const toRemove = existingSubjectIds.filter(
-        (subjectId) => !newSubjectIds.includes(subjectId),
+        (es) =>
+          !newSubjectIds.some(
+            (ns) =>
+              ns.subjectId === es.subjectId &&
+              ns.semesterNumber === es.semesterNumber,
+          ),
       );
 
       if (toRemove.length) {
         await this.curriculumCourseModel.deleteMany({
           curriculumId: curriculum._id,
-          subjectId: { $in: toRemove.map((id) => new Types.ObjectId(id)) },
+          subjectId: {
+            $in: toRemove.map((s) => new Types.ObjectId(s.subjectId)),
+          },
         });
       }
 
       if (toAdd.length) {
-        const subjectsToAdd = toAdd.map((subjectId) => ({
+        const subjectsToAdd = toAdd.map((s) => ({
           curriculumId: curriculum._id,
-          subjectId: new Types.ObjectId(subjectId),
+          subjectId: new Types.ObjectId(s.subjectId),
+          semesterNumber: s.semesterNumber,
         }));
         await this.curriculumCourseModel.insertMany(subjectsToAdd);
       }
