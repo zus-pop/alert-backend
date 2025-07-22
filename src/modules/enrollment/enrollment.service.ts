@@ -411,10 +411,10 @@ export class EnrollmentService {
   }
 
   async updateNotPassedIfOverAbsenteeismRate(enrollmentId: Types.ObjectId) {
-    const isOverAbsenteeismRate =
+    const { absenteeismRate } =
       await this.attendanceService.checkAbsenteeismRate(enrollmentId);
 
-    const status = isOverAbsenteeismRate ? 'NOT PASSED' : 'IN PROGRESS';
+    const status = absenteeismRate ? 'NOT PASSED' : 'IN PROGRESS';
     await this.enrollmentModel.findByIdAndUpdate(
       enrollmentId,
       {
@@ -441,7 +441,7 @@ export class EnrollmentService {
 
       if (!enrollment) throw new NotFoundException('Enrollment not found');
 
-      const isOverAbsenteeismRate =
+      const { absenteeismRate: isOverAbsenteeismRate } =
         await this.attendanceService.checkAbsenteeismRate(enrollment._id);
 
       if (enrollment.grade.length > 0) {

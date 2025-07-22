@@ -16,6 +16,7 @@ import { EnrollmentService } from '../enrollment/enrollment.service';
 import { AttendanceQueries } from './dto';
 import { CreateAttendanceDto } from './dto/create-attendance.dto';
 import { UpdateAttendanceDto } from './dto/update-attendance.dto';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 @Injectable()
 export class AttendanceService {
@@ -25,6 +26,7 @@ export class AttendanceService {
     @InjectModel(Attendance.name) private attendanceModel: Model<Attendance>,
     @Inject(forwardRef(() => EnrollmentService))
     private readonly enrollmentService: EnrollmentService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async clearCache() {
@@ -118,11 +120,14 @@ export class AttendanceService {
     return attendances;
   }
 
-  async checkAbsenteeismRate(enrollmentId: Types.ObjectId): Promise<boolean> {
+  async checkAbsenteeismRate(enrollmentId: Types.ObjectId): Promise<{
+    absenteeismRate: boolean;
+    numberOfAbsences: number;
+  }> {
     const attendances = await this.findByEnrollmentId(enrollmentId);
 
     if (attendances.length === 0) {
-      return false;
+      return { absenteeismRate: false, numberOfAbsences: 0 };
     }
 
     const absentCount = attendances.filter(
@@ -130,7 +135,10 @@ export class AttendanceService {
     ).length;
     const absenteeismRate = absentCount / attendances.length;
 
-    return absenteeismRate >= 0.2;
+    return {
+      absenteeismRate: absenteeismRate > 0.2,
+      numberOfAbsences: absentCount,
+    };
   }
 
   async findOne(id: string) {
@@ -148,8 +156,11 @@ export class AttendanceService {
   async update(id: string, updateAttendanceDto: UpdateAttendanceDto) {
     if (!isValidObjectId(id)) throw new WrongIdFormatException();
 
-    const attendance = await this.attendanceModel
-      .findByIdAndUpdate(id, updateAttendanceDto, { new: true })
+    const attendance = await this.attendanceModel.findByIdAndUpdate(
+      id,
+      updateAttendanceDto,
+      { new: true },
+    );
 
     if (!attendance) {
       throw new BadRequestException(`Attendance with id ${id} not found`);
