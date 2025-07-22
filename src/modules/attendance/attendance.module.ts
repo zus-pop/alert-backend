@@ -9,6 +9,7 @@ import {
 import { AttendanceController } from './attendance.controller';
 import { AttendanceService } from './attendance.service';
 import { EnrollmentModule } from '../enrollment/enrollment.module';
+import { AlertModule } from '../alert/alert.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { EnrollmentModule } from '../enrollment/enrollment.module';
       },
     ]),
     forwardRef(() => EnrollmentModule),
+    AlertModule,
   ],
   controllers: [AttendanceController],
   providers: [AttendanceService],

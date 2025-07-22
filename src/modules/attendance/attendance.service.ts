@@ -17,6 +17,7 @@ import { AttendanceQueries } from './dto';
 import { CreateAttendanceDto } from './dto/create-attendance.dto';
 import { UpdateAttendanceDto } from './dto/update-attendance.dto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { AlertService } from '../alert/alert.service';
 
 @Injectable()
 export class AttendanceService {
@@ -26,7 +27,7 @@ export class AttendanceService {
     @InjectModel(Attendance.name) private attendanceModel: Model<Attendance>,
     @Inject(forwardRef(() => EnrollmentService))
     private readonly enrollmentService: EnrollmentService,
-    private readonly eventEmitter: EventEmitter2,
+    private readonly alertService: AlertService,
   ) {}
 
   async clearCache() {
@@ -121,13 +122,18 @@ export class AttendanceService {
   }
 
   async checkAbsenteeismRate(enrollmentId: Types.ObjectId): Promise<{
-    absenteeismRate: boolean;
+    isOverAbsenteeismRate: boolean;
     numberOfAbsences: number;
+    absenteeismRate: number;
   }> {
     const attendances = await this.findByEnrollmentId(enrollmentId);
 
     if (attendances.length === 0) {
-      return { absenteeismRate: false, numberOfAbsences: 0 };
+      return {
+        isOverAbsenteeismRate: false,
+        numberOfAbsences: 0,
+        absenteeismRate: 0,
+      };
     }
 
     const absentCount = attendances.filter(
@@ -136,8 +142,9 @@ export class AttendanceService {
     const absenteeismRate = absentCount / attendances.length;
 
     return {
-      absenteeismRate: absenteeismRate > 0.2,
+      isOverAbsenteeismRate: absenteeismRate > 0.2,
       numberOfAbsences: absentCount,
+      absenteeismRate,
     };
   }
 
@@ -166,6 +173,25 @@ export class AttendanceService {
       throw new BadRequestException(`Attendance with id ${id} not found`);
     }
 
+    const { numberOfAbsences, absenteeismRate } =
+      await this.checkAbsenteeismRate(
+        new Types.ObjectId(attendance.enrollmentId.toString()),
+      );
+
+    if (absenteeismRate <= 0.2 && numberOfAbsences !== 0) {
+      this.alertService.create({
+        enrollmentId: attendance.enrollmentId.toString(),
+        title: 'Attendance Alert',
+        content: `Your absenteeism rate is ${(absenteeismRate * 100).toFixed(0)}%, which is below the threshold of 20%. However, you have ${numberOfAbsences} absences.`,
+        status: 'NOT RESPONDED',
+        riskLevel:
+          absenteeismRate <= 0.1
+            ? 'LOW'
+            : absenteeismRate <= 0.15
+              ? 'MEDIUM'
+              : 'HIGH',
+      });
+    }
     await this.enrollmentService.updateNotPassedIfOverAbsenteeismRate(
       new Types.ObjectId(attendance.enrollmentId.toString()),
     );
