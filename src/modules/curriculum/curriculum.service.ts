@@ -7,13 +7,18 @@ import { InjectModel } from '@nestjs/mongoose';
 import { isValidObjectId, Model, Types } from 'mongoose';
 import { CURRICULUM_CACHE_KEY } from '../../shared/constant';
 import { RedisService } from '../../shared/redis/redis.service';
-import { Curriculum, CurriculumCourse } from '../../shared/schemas';
+import {
+  Curriculum,
+  CurriculumCourse,
+  EnrollmentDocument,
+} from '../../shared/schemas';
 import {
   CreateCurriculumDto,
   CurriculumQueries,
   UpdateCurriculumDto,
 } from './dto';
 import { Pagination, SortCriteria } from '../../shared/dto';
+import { EnrollmentService } from '../enrollment/enrollment.service';
 
 @Injectable()
 export class CurriculumService {
@@ -23,6 +28,7 @@ export class CurriculumService {
     @InjectModel(CurriculumCourse.name)
     private readonly curriculumCourseModel: Model<CurriculumCourse>,
     private readonly redisService: RedisService,
+    private readonly enrollmentService: EnrollmentService,
   ) {}
 
   async clearCache() {
@@ -125,7 +131,7 @@ export class CurriculumService {
     return response;
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, studentId?: string) {
     if (!isValidObjectId(id))
       throw new BadRequestException('Id is wrong format');
     const curriculum = await this.curriculumModel.findById(id);
@@ -141,12 +147,42 @@ export class CurriculumService {
           subjectName: doc.subjectName,
         }),
       });
+
+    let studentEnrollments: EnrollmentDocument[] = [];
+    if (studentId) {
+      const enrollments = await this.enrollmentService.findAllByStudentId(
+        new Types.ObjectId(studentId),
+      );
+      studentEnrollments = enrollments.data;
+    }
+
     return {
       ...curriculum.toObject(),
-      subjects: subjects.map((subject) => ({
-        ...subject.subjectId,
-        semesterNumber: subject.semesterNumber,
-      })),
+      subjects: subjects.map((subject) => {
+        const studentData = studentEnrollments.find(
+          (enrollment) =>
+            enrollment.courseId.subjectId._id.toString() ===
+            subject.subjectId._id.toString(),
+        );
+
+        const data: any = {
+          status: 'NOT YET',
+        };
+
+        if (studentData) {
+          data.enrollmentId = studentData._id;
+          data.status = studentData.status;
+        }
+
+        if (studentData?.finalGrade) {
+          data.finalGrade = studentData.finalGrade;
+        }
+        return {
+          ...subject.subjectId,
+          semesterNumber: subject.semesterNumber,
+          studentData: data,
+        };
+      }),
     };
   }
 

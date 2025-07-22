@@ -37,7 +37,7 @@ export class Enrollment {
     type: Types.ObjectId,
     ref: 'Course',
   })
-  courseId: Types.ObjectId | Course;
+  courseId: Course;
 
   @Prop({
     required: true,
