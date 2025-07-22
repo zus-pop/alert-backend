@@ -2,6 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
 import { Major } from './major.schema';
 import { Combo } from './combo.schema';
+import { Curriculum } from './curriculum.schema';
 
 export type StudentDocument = HydratedDocument<Student>;
 
@@ -74,6 +75,13 @@ export class Student {
     ref: 'Combo',
   })
   comboId: Combo;
+
+  @Prop({
+    required: false,
+    type: Types.ObjectId,
+    ref: 'Curriculum',
+  })
+  curriculumId: Curriculum;
 
   @Prop({
     required: false,

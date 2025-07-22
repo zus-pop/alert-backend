@@ -288,11 +288,7 @@ export class EnrollmentService {
       {
         $project: {
           _id: 1,
-          courseId: {
-            _id: '$courseId._id',
-            subjectId: '$courseId.subjectId',
-            semesterId: '$courseId.semesterId',
-          },
+          courseId: 1,
           studentId: {
             firstName: '$studentId.firstName',
             lastName: '$studentId.lastName',

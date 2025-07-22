@@ -140,18 +140,6 @@ export class StudentService {
     };
   }
 
-  private calculateProfileCompleteness(student: StudentDocument): number {
-    const requiredFields = [
-      'firstName',
-      'lastName',
-      'email',
-      'phone',
-      'dateOfBirth',
-    ];
-    const completedFields = requiredFields.filter((field) => student[field]);
-    return Math.round((completedFields.length / requiredFields.length) * 100);
-  }
-
   async findEnrollmentsByStudentId(
     id: string,
     status: string,
