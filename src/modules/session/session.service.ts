@@ -1,11 +1,11 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { DeleteResult, isValidObjectId, Model, Types } from 'mongoose';
+import { SESSION_CACHE_KEY } from '../../shared/constant';
+import { WrongIdFormatException } from '../../shared/exceptions';
 import { RedisService } from '../../shared/redis/redis.service';
 import { Session } from '../../shared/schemas';
-import { UpdateSessionDto } from './dto/update-session.dto';
-import { CreateSessionDto } from './dto/create-session.dto';
-import { WrongIdFormatException } from '../../shared/exceptions';
+import { CreateSessionDto, UpdateSessionDto } from './dto';
 
 @Injectable()
 export class SessionService {
@@ -14,6 +14,10 @@ export class SessionService {
     @InjectModel(Session.name) private sessionModel: Model<Session>,
     private readonly redisService: RedisService,
   ) {}
+
+  async clearCache() {
+    await this.redisService.clearCache(SESSION_CACHE_KEY);
+  }
 
   create(createSessionDto: CreateSessionDto) {
     return 'Not implemented yet';
@@ -58,7 +62,7 @@ export class SessionService {
       { new: true },
     );
     if (!session) throw new NotFoundException('Session not found');
-
+    await this.clearCache();
     return session;
   }
 

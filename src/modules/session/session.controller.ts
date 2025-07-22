@@ -8,10 +8,9 @@ import {
   Patch,
   Post,
 } from '@nestjs/common';
-import { CreateSessionDto } from './dto/create-session.dto';
-import { UpdateSessionDto } from './dto/update-session.dto';
 import { SessionService } from './session.service';
 import { Types } from 'mongoose';
+import { CreateSessionDto, UpdateSessionDto } from './dto';
 
 @Injectable()
 @Controller('sessions')
