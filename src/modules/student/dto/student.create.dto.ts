@@ -49,6 +49,14 @@ export class CreateStudentDto {
   })
   curriculumId: string | Types.ObjectId;
 
+  @IsOptional()
+  @ApiProperty({
+    required: false,
+    type: Number,
+    description: 'Number of semesters the student has learned',
+  })
+  learnedSemester?: number;
+
   @IsString()
   @IsNotEmpty()
   @ApiProperty()

@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsIn, IsOptional, IsString, Matches } from 'class-validator';
+import { IsIn, IsOptional, IsString } from 'class-validator';
 import { Types } from 'mongoose';
 
 export class UpdateStudentDto {
@@ -39,6 +39,14 @@ export class UpdateStudentDto {
     description: 'ID of the curriculum the student belongs to',
   })
   curriculumId?: string | Types.ObjectId;
+
+  @IsOptional()
+  @ApiProperty({
+    required: false,
+    type: Number,
+    description: 'Number of semesters the student has learned',
+  })
+  learnedSemester?: number;
 
   @IsString()
   @IsOptional()
