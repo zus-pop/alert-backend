@@ -5,6 +5,11 @@ export class CreateCourseDto {
   @IsString()
   @IsNotEmpty()
   @ApiProperty()
+  title: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @ApiProperty()
   subjectId: string;
 
   @IsString()

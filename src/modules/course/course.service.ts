@@ -66,9 +66,16 @@ export class CourseService {
     const limit = pagination.limit ?? 10;
     const skip = (page - 1) * limit;
 
+    if (queries.title) {
+      queries.title = {
+        $regex: queries.title,
+        $options: 'i',
+      };
+    }
+
     const [courses, total] = await Promise.all([
       this.courseModel
-        .find()
+        .find(queries)
         .populate('subjectId')
         .populate('semesterId')
         .sort({ [sortField]: sortOrder })

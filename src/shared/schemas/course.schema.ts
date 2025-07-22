@@ -12,6 +12,12 @@ export type CourseDocument = HydratedDocument<Course>;
 export class Course {
   @Prop({
     required: true,
+    type: String,
+  })
+  title: string;
+
+  @Prop({
+    required: true,
     type: Types.ObjectId,
     ref: 'Subject',
   })
