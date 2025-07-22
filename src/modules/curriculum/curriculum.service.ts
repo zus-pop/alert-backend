@@ -109,6 +109,7 @@ export class CurriculumService {
           _id: doc._id,
           subjectCode: doc.subjectCode,
           subjectName: doc.subjectName,
+          credit: doc.credit,
         }),
       });
 
@@ -145,6 +146,7 @@ export class CurriculumService {
           _id: doc._id,
           subjectCode: doc.subjectCode,
           subjectName: doc.subjectName,
+          credit: doc.credit,
         }),
       });
 
