@@ -8,6 +8,7 @@ import {
 } from '../../shared/schemas';
 import { CurriculumController } from './curriculum.controller';
 import { CurriculumService } from './curriculum.service';
+import { EnrollmentModule } from '../enrollment/enrollment.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { CurriculumService } from './curriculum.service';
         schema: CurriculumCourseSchema,
       },
     ]),
+    EnrollmentModule,
   ],
   controllers: [CurriculumController],
   providers: [CurriculumService],
