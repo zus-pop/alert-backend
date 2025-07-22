@@ -25,4 +25,11 @@ export class CreateSubjectDto {
     type: String,
   })
   prerequisite: string[];
+
+  @IsNotEmpty()
+  @ApiProperty({
+    type: Number,
+    required: true,
+  })
+  credit: number;
 }
