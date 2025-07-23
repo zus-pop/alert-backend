@@ -216,8 +216,8 @@ export class EnrollmentService {
         ? 1
         : -1;
 
-    const page = pagination.page ?? 1;
-    const limit = pagination.limit ?? 10;
+    const page = pagination.page ? +pagination.page : 1;
+    const limit = pagination.limit ? +pagination.limit : 10;
     const skip = (page - 1) * limit;
 
     const rootMatch: {
@@ -303,18 +303,12 @@ export class EnrollmentService {
       },
 
       {
-        $sort: { [sortField]: sortOrder },
-      },
-      {
-        $skip: skip,
-      },
-      {
-        $limit: limit,
-      },
-
-      {
         $facet: {
-          data: [{ $sort: { [sortField]: sortOrder } }],
+          data: [
+            { $sort: { [sortField]: sortOrder } },
+            { $skip: skip },
+            { $limit: limit },
+          ],
           totalCount: [{ $count: 'count' }],
         },
       },
