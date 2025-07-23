@@ -115,6 +115,16 @@ export class CourseService {
   async update(id: string, updateCourseDto: UpdateCourseDto) {
     if (!isValidObjectId(id)) throw new WrongIdFormatException();
 
+    if (updateCourseDto.semesterId) {
+      if (!isValidObjectId(updateCourseDto.semesterId)) {
+        throw new WrongIdFormatException('Invalid semester ID');
+      }
+
+      updateCourseDto.semesterId = new Types.ObjectId(
+        updateCourseDto.semesterId,
+      );
+    }
+
     try {
       const course = await this.courseModel.findByIdAndUpdate(
         id,
