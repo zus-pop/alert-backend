@@ -45,6 +45,7 @@ export class AlertService {
         NEW_ALERT_EVENT,
         new NewAlertEvent(
           alert.enrollmentId.studentId as Types.ObjectId,
+          alert._id,
           alert.title,
           alert.content,
         ),
@@ -173,22 +174,27 @@ export class AlertService {
           id,
           {
             ...updateAlertDto,
-            status: 'RESPONDED',
           },
           { new: true },
         )
         .populate('enrollmentId');
       if (!alert) throw new NotFoundException(`Alert with id ${id} not found`);
 
-      this.eventEmitter.emit(
-        ALERT_RESPONDED_EVENT,
-        new RespondedAlertEvent(
-          alert.enrollmentId.studentId as Types.ObjectId,
-          alert.title,
-          alert.content,
-          alert.supervisorResponse,
-        ),
-      );
+      if (updateAlertDto.supervisorResponse) {
+        alert.status = 'RESPONDED';
+        await alert.save();
+        this.eventEmitter.emit(
+          ALERT_RESPONDED_EVENT,
+          new RespondedAlertEvent(
+            alert.enrollmentId.studentId as Types.ObjectId,
+            alert._id,
+            alert.title,
+            alert.content,
+            alert.supervisorResponse,
+          ),
+        );
+      }
+
       await this.clearCache();
       return alert;
     } catch (error) {

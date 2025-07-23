@@ -1,7 +1,13 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { Types } from 'mongoose';
 
 export class CreateCourseDto {
+  @IsString()
+  @IsNotEmpty()
+  @ApiProperty()
+  title: string;
+
   @IsString()
   @IsNotEmpty()
   @ApiProperty()
@@ -10,7 +16,7 @@ export class CreateCourseDto {
   @IsString()
   @IsNotEmpty()
   @ApiProperty()
-  semesterId: string;
+  semesterId: string | Types.ObjectId;
 
   @IsOptional()
   @ApiProperty({

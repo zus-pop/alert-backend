@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
+  IsBoolean,
   IsBooleanString,
   IsEmail,
   IsOptional,
@@ -7,6 +8,7 @@ import {
   Matches,
 } from 'class-validator';
 import { Gender } from '../../../shared/schemas/student.schema';
+import { Transform } from 'class-transformer';
 
 export class StudentQueries {
   @IsString()
@@ -56,14 +58,20 @@ export class StudentQueries {
     type: String,
     description: 'Email of the student',
   })
-  email?: string;
+  email?: string | {};
 
-  //   @IsBooleanString()
-  //   @IsOptional()
-  //   @ApiProperty({
-  //     required: false,
-  //     type: Boolean,
-  //     default: false,
-  //   })
-  //   isDeleted?: boolean;
+  @IsBoolean()
+  @Transform(({ value }) => {
+    if (typeof value === 'string') {
+      return value === 'true';
+    }
+    return value;
+  })
+  @IsOptional()
+  @ApiProperty({
+    required: false,
+    type: Boolean,
+    description: 'Indicates if the student is deleted',
+  })
+  isDeleted?: boolean;
 }

@@ -1,14 +1,23 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  forwardRef,
+  Inject,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { DeleteResult, isValidObjectId, Model, Types } from 'mongoose';
 import { ATTENDANCE_CACHE_KEY } from '../../shared/constant';
 import { Pagination, SortCriteria } from '../../shared/dto';
 import { WrongIdFormatException } from '../../shared/exceptions';
 import { RedisService } from '../../shared/redis/redis.service';
-import { Attendance } from '../../shared/schemas';
+import { Attendance, Enrollment } from '../../shared/schemas';
+import { EnrollmentService } from '../enrollment/enrollment.service';
 import { AttendanceQueries } from './dto';
 import { CreateAttendanceDto } from './dto/create-attendance.dto';
 import { UpdateAttendanceDto } from './dto/update-attendance.dto';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { AlertService } from '../alert/alert.service';
 
 @Injectable()
 export class AttendanceService {
@@ -16,6 +25,9 @@ export class AttendanceService {
   constructor(
     private readonly redisService: RedisService,
     @InjectModel(Attendance.name) private attendanceModel: Model<Attendance>,
+    @Inject(forwardRef(() => EnrollmentService))
+    private readonly enrollmentService: EnrollmentService,
+    private readonly alertService: AlertService,
   ) {}
 
   async clearCache() {
@@ -78,9 +90,9 @@ export class AttendanceService {
     const skip = (page - 1) * limit;
 
     if (queries.enrollmentId)
-        queries.enrollmentId = new Types.ObjectId(queries.enrollmentId);
+      queries.enrollmentId = new Types.ObjectId(queries.enrollmentId);
     if (queries.sessionId)
-        queries.sessionId = new Types.ObjectId(queries.sessionId);
+      queries.sessionId = new Types.ObjectId(queries.sessionId);
 
     const [attendances, total] = await Promise.all([
       this.attendanceModel
@@ -102,9 +114,38 @@ export class AttendanceService {
   async findByEnrollmentId(enrollmentId: Types.ObjectId) {
     if (!isValidObjectId(enrollmentId)) throw new WrongIdFormatException();
 
-    const attendances = await this.attendanceModel.find({ enrollmentId });
+    const attendances = await this.attendanceModel
+      .find({ enrollmentId })
+      .populate('sessionId', 'startTime endTime');
 
     return attendances;
+  }
+
+  async checkAbsenteeismRate(enrollmentId: Types.ObjectId): Promise<{
+    isOverAbsenteeismRate: boolean;
+    numberOfAbsences: number;
+    absenteeismRate: number;
+  }> {
+    const attendances = await this.findByEnrollmentId(enrollmentId);
+
+    if (attendances.length === 0) {
+      return {
+        isOverAbsenteeismRate: false,
+        numberOfAbsences: 0,
+        absenteeismRate: 0,
+      };
+    }
+
+    const absentCount = attendances.filter(
+      (attendance) => attendance.status === 'ABSENT',
+    ).length;
+    const absenteeismRate = absentCount / attendances.length;
+
+    return {
+      isOverAbsenteeismRate: absenteeismRate > 0.2,
+      numberOfAbsences: absentCount,
+      absenteeismRate,
+    };
   }
 
   async findOne(id: string) {
@@ -131,6 +172,29 @@ export class AttendanceService {
     if (!attendance) {
       throw new BadRequestException(`Attendance with id ${id} not found`);
     }
+
+    const { numberOfAbsences, absenteeismRate } =
+      await this.checkAbsenteeismRate(
+        new Types.ObjectId(attendance.enrollmentId.toString()),
+      );
+
+    if (absenteeismRate <= 0.2 && numberOfAbsences !== 0) {
+      this.alertService.create({
+        enrollmentId: attendance.enrollmentId.toString(),
+        title: 'Attendance Alert',
+        content: `Your absenteeism rate is ${(absenteeismRate * 100).toFixed(0)}%, which is below the threshold of 20%. However, you have ${numberOfAbsences} absences.`,
+        status: 'NOT RESPONDED',
+        riskLevel:
+          absenteeismRate <= 0.1
+            ? 'LOW'
+            : absenteeismRate <= 0.15
+              ? 'MEDIUM'
+              : 'HIGH',
+      });
+    }
+    await this.enrollmentService.updateNotPassedIfOverAbsenteeismRate(
+      new Types.ObjectId(attendance.enrollmentId.toString()),
+    );
 
     await this.clearCache();
 

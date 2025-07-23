@@ -72,6 +72,10 @@ export class ComboService {
     const limit = pagination.limit ?? 10;
     const skip = (page - 1) * limit;
 
+    if (queries.majorId) {
+      queries.majorId = new Types.ObjectId(queries.majorId);
+    }
+
     const [combos, total] = await Promise.all([
       this.comboModel
         .find(queries)

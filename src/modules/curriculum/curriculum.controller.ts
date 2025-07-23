@@ -15,6 +15,7 @@ import {
   UpdateCurriculumDto,
 } from './dto';
 import { Pagination, SortCriteria } from '../../shared/dto';
+import { ApiProperty, ApiQuery } from '@nestjs/swagger';
 
 @Controller('curriculums')
 export class CurriculumController {
@@ -35,8 +36,14 @@ export class CurriculumController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.curriculumService.findOne(id);
+  @ApiQuery({
+    name: 'studentId',
+    description: 'Append with student enrollment data',
+    required: false,
+    type: String,
+  })
+  findOne(@Param('id') id: string, @Query('studentId') studentId?: string) {
+    return this.curriculumService.findOne(id, studentId);
   }
 
   @Patch(':id')

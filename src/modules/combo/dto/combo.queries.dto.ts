@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsOptional, IsString } from 'class-validator';
+import { Types } from 'mongoose';
 
 export class ComboQueries {
   @IsString()
@@ -20,12 +21,12 @@ export class ComboQueries {
   })
   comboName?: string | {};
 
-  //   @IsString()
-  //   @IsOptional()
-  //   @ApiProperty({
-  //     type: String,
-  //     required: false,
-  //     description: 'Filter by major code',
-  //   })
-  //   majorCode?: string | {};
+  @IsString()
+  @IsOptional()
+  @ApiProperty({
+    type: String,
+    required: false,
+    description: 'Filter by major ID',
+  })
+  majorId?: string | Types.ObjectId;
 }

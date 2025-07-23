@@ -1,27 +1,29 @@
 import {
   BadRequestException,
+  forwardRef,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectConnection, InjectModel } from '@nestjs/mongoose';
-import { Connection, isValidObjectId, Model, Types } from 'mongoose';
-import { ENROLLMENT_CACHE_KEY } from '../../shared/constant';
+import { InjectModel } from '@nestjs/mongoose';
+import { isValidObjectId, Model, Types } from 'mongoose';
+import { ENROLLMENT_CACHE_KEY, STUDENT_CACHE_KEY } from '../../shared/constant';
 import { Pagination, SortCriteria } from '../../shared/dto';
 import { WrongIdFormatException } from '../../shared/exceptions';
 import { RedisService } from '../../shared/redis/redis.service';
-import { Enrollment, GradeDocument } from '../../shared/schemas';
+import { Enrollment } from '../../shared/schemas';
+import { AttendanceService } from '../attendance/attendance.service';
+import { SessionService } from '../session/session.service';
 import { EnrollmentQueries } from './dto';
 import { CreateEnrollmentDto } from './dto/create-enrollment.dto';
 import { UpdateEnrollmentDto } from './dto/update-enrollment.dto';
-import { SessionService } from '../session/session.service';
-import { AttendanceService } from '../attendance/attendance.service';
 
 @Injectable()
 export class EnrollmentService {
   constructor(
     private readonly redisService: RedisService,
     @InjectModel(Enrollment.name) private enrollmentModel: Model<Enrollment>,
-
+    @Inject(forwardRef(() => AttendanceService))
     private readonly attendanceService: AttendanceService,
     private readonly sessionService: SessionService,
   ) {}
@@ -45,6 +47,32 @@ export class EnrollmentService {
         enrollment._id,
         sessions.map((session) => session._id),
       );
+
+      if (enrollment.grade.length > 0) {
+        const hasAllGrades = enrollment.grade.every(
+          (grade) => grade.score !== null,
+        );
+
+        const totalWeight = enrollment.grade.reduce(
+          (sum, grade) => sum + grade.weight,
+          0,
+        );
+
+        if (hasAllGrades && Math.abs(totalWeight - 1) < Number.EPSILON) {
+          const finalGrade = enrollment.grade.reduce(
+            (sum, grade) => sum + grade.score! * grade.weight,
+            0,
+          );
+
+          enrollment.finalGrade = finalGrade;
+          enrollment.status = finalGrade >= 5.0 ? 'PASSED' : 'NOT PASSED';
+        } else {
+          enrollment.status = 'IN PROGRESS';
+          enrollment.finalGrade = undefined;
+        }
+        await enrollment.save();
+      }
+
       await this.clearCache();
       return enrollment;
     } catch (error) {
@@ -54,6 +82,7 @@ export class EnrollmentService {
 
   async clearCache() {
     await this.redisService.clearCache(ENROLLMENT_CACHE_KEY);
+    await this.redisService.clearCache(STUDENT_CACHE_KEY);
   }
 
   async findAll(
@@ -74,10 +103,92 @@ export class EnrollmentService {
     const limit = pagination.limit ?? 10;
     const skip = (page - 1) * limit;
 
+    // If semesterId is provided, use aggregation pipeline for nested filtering
+    if (queries.semesterId) {
+      const semesterObjectId = new Types.ObjectId(queries.semesterId);
+      // Build match conditions excluding semesterId
+      const matchConditions = { ...queries };
+      delete matchConditions.semesterId;
+
+      const [result] = await this.enrollmentModel.aggregate([
+        // Stage 1: Match enrollment-level conditions
+        { $match: matchConditions },
+
+        // Stage 2: Lookup course details
+        {
+          $lookup: {
+            from: 'course',
+            localField: 'courseId',
+            foreignField: '_id',
+            as: 'courseId',
+          },
+        },
+        { $unwind: '$courseId' },
+
+        // Stage 3: Filter by semesterId in the course
+        {
+          $match: {
+            'courseId.semesterId': semesterObjectId,
+          },
+        },
+
+        // Stage 4: Lookup student details
+        {
+          $lookup: {
+            from: 'student',
+            localField: 'studentId',
+            foreignField: '_id',
+            as: 'studentId',
+          },
+        },
+        { $unwind: '$studentId' },
+
+        // Stage 5: Project necessary fields
+        {
+          $project: {
+            _id: 1,
+            courseId: 1,
+            studentId: {
+              firstName: '$studentId.firstName',
+              lastName: '$studentId.lastName',
+              email: '$studentId.email',
+              image: '$studentId.image',
+            },
+            enrollmentDate: 1,
+            grade: 1,
+            status: 1,
+            finalGrade: 1,
+          },
+        },
+
+        // Stage 6: Use $facet for data and count
+        {
+          $facet: {
+            data: [
+              { $sort: { [sortField]: sortOrder } },
+              { $skip: skip },
+              { $limit: limit },
+            ],
+            totalCount: [{ $count: 'count' }],
+          },
+        },
+      ]);
+      const enrollments = result.data;
+      const total = result.totalCount[0]?.count || 0;
+
+      return {
+        data: enrollments,
+        totalItems: total,
+        totalPage: Math.ceil(total / limit),
+      };
+    }
+
+    // Original logic for non-semester filtering
     const [enrollments, total] = await Promise.all([
       this.enrollmentModel
         .find(queries)
         .populate('studentId', 'firstName lastName email image')
+        .populate('courseId')
         .sort({ [sortField]: sortOrder })
         .skip(skip)
         .limit(limit),
@@ -95,6 +206,7 @@ export class EnrollmentService {
   async findByStudentId(
     studentId: Types.ObjectId,
     status: string,
+    semesterId: Types.ObjectId | undefined,
     sortCriteria: SortCriteria,
     pagination: Pagination,
   ) {
@@ -104,34 +216,106 @@ export class EnrollmentService {
         ? 1
         : -1;
 
-    const page = pagination.page ?? 1;
-    const limit = pagination.limit ?? 10;
+    const page = pagination.page ? +pagination.page : 1;
+    const limit = pagination.limit ? +pagination.limit : 10;
     const skip = (page - 1) * limit;
 
-    const [enrollments, total] = await Promise.all([
-      this.enrollmentModel
-        .find({
-          studentId: studentId,
-          ...(status ? { status: status } : {}),
-        })
-        .populate({
-          path: 'courseId',
-          populate: [
+    const rootMatch: {
+      studentId: Types.ObjectId;
+      status?: string;
+      semesterId?: Types.ObjectId;
+    } = { studentId: studentId };
+
+    if (status) {
+      rootMatch.status = status;
+    }
+
+    const result = await this.enrollmentModel.aggregate([
+      { $match: rootMatch },
+
+      {
+        $lookup: {
+          from: 'course',
+          localField: 'courseId',
+          foreignField: '_id',
+          as: 'courseId',
+        },
+      },
+      { $unwind: '$courseId' },
+
+      ...(semesterId
+        ? [
             {
-              path: 'subjectId',
-              select: 'subjectCode subjectName',
+              $match: {
+                'courseId.semesterId': semesterId,
+              },
             },
-            {
-              path: 'semesterId',
-              select: 'semesterName startDate endDate',
-            },
+          ]
+        : []),
+
+      {
+        $lookup: {
+          from: 'subject',
+          localField: 'courseId.subjectId',
+          foreignField: '_id',
+          as: 'courseId.subjectId',
+        },
+      },
+      { $unwind: '$courseId.subjectId' },
+
+      {
+        $lookup: {
+          from: 'semester',
+          localField: 'courseId.semesterId',
+          foreignField: '_id',
+          as: 'courseId.semesterId',
+        },
+      },
+      { $unwind: '$courseId.semesterId' },
+
+      {
+        $lookup: {
+          from: 'student',
+          localField: 'studentId',
+          foreignField: '_id',
+          as: 'studentId',
+        },
+      },
+      {
+        $unwind: '$studentId',
+      },
+
+      {
+        $project: {
+          _id: 1,
+          courseId: 1,
+          studentId: {
+            firstName: '$studentId.firstName',
+            lastName: '$studentId.lastName',
+            email: '$studentId.email',
+            image: '$studentId.image',
+          },
+          enrollmentDate: 1,
+          grade: 1,
+          status: 1,
+          finalGrade: 1,
+        },
+      },
+
+      {
+        $facet: {
+          data: [
+            { $sort: { [sortField]: sortOrder } },
+            { $skip: skip },
+            { $limit: limit },
           ],
-        })
-        .sort({ [sortField]: sortOrder })
-        .skip(skip)
-        .limit(limit),
-      this.enrollmentModel.countDocuments({ studentId: studentId }),
+          totalCount: [{ $count: 'count' }],
+        },
+      },
     ]);
+
+    const enrollments = result[0].data;
+    const total = result[0].totalCount[0]?.count || 0;
 
     const response = {
       data: enrollments,
@@ -220,6 +404,23 @@ export class EnrollmentService {
     };
   }
 
+  async updateNotPassedIfOverAbsenteeismRate(enrollmentId: Types.ObjectId) {
+    const { isOverAbsenteeismRate } =
+      await this.attendanceService.checkAbsenteeismRate(enrollmentId);
+
+    const status = isOverAbsenteeismRate ? 'NOT PASSED' : 'IN PROGRESS';
+    await this.enrollmentModel.findByIdAndUpdate(
+      enrollmentId,
+      {
+        status: status,
+      },
+      {
+        new: true,
+      },
+    );
+    await this.clearCache();
+  }
+
   async update(id: string, updateEnrollmentDto: UpdateEnrollmentDto) {
     if (!isValidObjectId(id)) throw new WrongIdFormatException();
 
@@ -234,44 +435,34 @@ export class EnrollmentService {
 
       if (!enrollment) throw new NotFoundException('Enrollment not found');
 
+      const { isOverAbsenteeismRate } =
+        await this.attendanceService.checkAbsenteeismRate(enrollment._id);
+
       if (enrollment.grade.length > 0) {
-        const types: GradeDocument['type'][] = [
-          'progress test',
-          'assignment',
-          'practical exam',
-          'final exam',
-        ];
-        const hasAllGrade = types.every((type) =>
-          enrollment.grade.some(
-            (grade) => grade.type === type && grade.score !== null,
-          ),
+        const hasAllGrades = enrollment.grade.every(
+          (grade) => grade.score !== null,
         );
 
-        if (hasAllGrade) {
-          // Calculate final grade using weighted average
-          const progressTest = enrollment.grade.find(
-            (g) => g.type === 'progress test',
-          );
-          const assignment = enrollment.grade.find(
-            (g) => g.type === 'assignment',
-          );
-          const practicalExam = enrollment.grade.find(
-            (g) => g.type === 'practical exam',
-          );
-          const finalExam = enrollment.grade.find(
-            (g) => g.type === 'final exam',
-          );
+        const totalWeight = enrollment.grade.reduce(
+          (sum, grade) => sum + grade.weight,
+          0,
+        );
 
-          const finalGrade =
-            progressTest!.score * progressTest!.weight +
-            assignment!.score * assignment!.weight +
-            practicalExam!.score * practicalExam!.weight +
-            finalExam!.score * finalExam!.weight;
+        if (hasAllGrades && Math.abs(totalWeight - 1) < Number.EPSILON) {
+          const finalGrade = enrollment.grade.reduce(
+            (sum, grade) => sum + grade.score! * grade.weight,
+            0,
+          );
 
           enrollment.finalGrade = finalGrade;
-          enrollment.status = finalGrade >= 5.0 ? 'PASSED' : 'NOT PASSED';
+          enrollment.status =
+            finalGrade >= 5.0 && !isOverAbsenteeismRate
+              ? 'PASSED'
+              : 'NOT PASSED';
         } else {
-          enrollment.status = 'IN PROGRESS';
+          if (isOverAbsenteeismRate) enrollment.status = 'NOT PASSED';
+          else enrollment.status = 'IN PROGRESS';
+          enrollment.finalGrade = undefined;
         }
         await enrollment.save();
       }

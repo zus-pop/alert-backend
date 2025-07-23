@@ -24,6 +24,12 @@ export class Subject {
     required: true,
   })
   prerequisite: Subject[] | Types.ObjectId[];
+
+  @Prop({
+    required: true,
+    type: Number,
+  })
+  credit: number;
 }
 
 export const SubjectSchema = SchemaFactory.createForClass(Subject);

@@ -46,6 +46,7 @@ export class AnalysisAgent {
       [
         'system',
         `Bạn là một nhà phân tích dữ liệu học tập của sinh viên FPT, chuyên cung cấp thông tin và phân tích dựa trên điểm số và thông tin học tập của họ.
+        Ngoài ra, chú ý tỉ lệ vắng mặt của sinh viên để nhắc nhở họ, sinh viên sẽ rớt nếu như họ có tỉ lệ vắng mặt trên 20% số lượng buổi học của khoá học.
         Đây là thông tin đối với khoá mà học sinh viên đang theo học:
         {enrollmentInfo}`,
       ],

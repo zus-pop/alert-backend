@@ -1,7 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
-import { Subject } from './subject.schema';
-import { Semester } from './semester.schema';
+import { Subject, SubjectDocument } from './subject.schema';
+import { Semester, SemesterDocument } from './semester.schema';
 
 export type CourseDocument = HydratedDocument<Course>;
 
@@ -12,17 +12,23 @@ export type CourseDocument = HydratedDocument<Course>;
 export class Course {
   @Prop({
     required: true,
+    type: String,
+  })
+  title: string;
+
+  @Prop({
+    required: true,
     type: Types.ObjectId,
     ref: 'Subject',
   })
-  subjectId: Subject;
+  subjectId: SubjectDocument;
 
   @Prop({
     required: true,
     type: Types.ObjectId,
     ref: 'Semester',
   })
-  semesterId: Semester;
+  semesterId: SemesterDocument;
 
   @Prop({
     type: String,

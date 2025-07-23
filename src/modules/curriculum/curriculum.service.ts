@@ -7,13 +7,18 @@ import { InjectModel } from '@nestjs/mongoose';
 import { isValidObjectId, Model, Types } from 'mongoose';
 import { CURRICULUM_CACHE_KEY } from '../../shared/constant';
 import { RedisService } from '../../shared/redis/redis.service';
-import { Curriculum, CurriculumCourse } from '../../shared/schemas';
+import {
+  Curriculum,
+  CurriculumCourse,
+  EnrollmentDocument,
+} from '../../shared/schemas';
 import {
   CreateCurriculumDto,
   CurriculumQueries,
   UpdateCurriculumDto,
 } from './dto';
 import { Pagination, SortCriteria } from '../../shared/dto';
+import { EnrollmentService } from '../enrollment/enrollment.service';
 
 @Injectable()
 export class CurriculumService {
@@ -23,6 +28,7 @@ export class CurriculumService {
     @InjectModel(CurriculumCourse.name)
     private readonly curriculumCourseModel: Model<CurriculumCourse>,
     private readonly redisService: RedisService,
+    private readonly enrollmentService: EnrollmentService,
   ) {}
 
   async clearCache() {
@@ -34,8 +40,8 @@ export class CurriculumService {
       throw new BadRequestException('Combo ID is not valid');
 
     if (
-      createCurriculumDto.subjectIds.length &&
-      !createCurriculumDto.subjectIds.some(isValidObjectId)
+      createCurriculumDto.subjects.length &&
+      !createCurriculumDto.subjects.some((s) => isValidObjectId(s.subjectId))
     )
       throw new BadRequestException('One or more subject IDs are not valid');
 
@@ -45,9 +51,10 @@ export class CurriculumService {
         curriculumName: createCurriculumDto.curriculumName,
       });
 
-      const subjects = createCurriculumDto.subjectIds.map((subjectId) => ({
+      const subjects = createCurriculumDto.subjects.map((s) => ({
         curriculumId: curriculum._id,
-        subjectId: new Types.ObjectId(subjectId),
+        subjectId: new Types.ObjectId(s.subjectId),
+        semesterNumber: s.semesterNumber,
       }));
 
       await this.curriculumCourseModel.insertMany(subjects);
@@ -80,6 +87,10 @@ export class CurriculumService {
     const limit = pagination.limit ?? 10;
     const skip = (page - 1) * limit;
 
+    if (queries.comboId) {
+      queries.comboId = new Types.ObjectId(queries.comboId);
+    }
+
     const [curriculums, total] = await Promise.all([
       this.curriculumModel
         .find(queries)
@@ -98,6 +109,7 @@ export class CurriculumService {
           _id: doc._id,
           subjectCode: doc.subjectCode,
           subjectName: doc.subjectName,
+          credit: doc.credit,
         }),
       });
 
@@ -109,7 +121,10 @@ export class CurriculumService {
             (subject) =>
               subject.curriculumId.toString() === curriculum._id.toString(),
           )
-          .map((subject) => subject.subjectId),
+          .map((subject) => ({
+            ...subject.subjectId,
+            semesterNumber: subject.semesterNumber,
+          })),
       })),
       totalItems: total,
       totalPage: Math.ceil(total / limit),
@@ -117,7 +132,7 @@ export class CurriculumService {
     return response;
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, studentId?: string) {
     if (!isValidObjectId(id))
       throw new BadRequestException('Id is wrong format');
     const curriculum = await this.curriculumModel.findById(id);
@@ -131,11 +146,45 @@ export class CurriculumService {
           _id: doc._id,
           subjectCode: doc.subjectCode,
           subjectName: doc.subjectName,
+          credit: doc.credit,
         }),
       });
+
+    let studentEnrollments: EnrollmentDocument[] = [];
+    if (studentId) {
+      const enrollments = await this.enrollmentService.findAllByStudentId(
+        new Types.ObjectId(studentId),
+      );
+      studentEnrollments = enrollments.data;
+    }
+
     return {
       ...curriculum.toObject(),
-      subjects: subjects.map((subject) => subject.subjectId),
+      subjects: subjects.map((subject) => {
+        const studentData = studentEnrollments.find(
+          (enrollment) =>
+            enrollment.courseId.subjectId._id.toString() ===
+            subject.subjectId._id.toString(),
+        );
+
+        const data: any = {
+          status: 'NOT YET',
+        };
+
+        if (studentData) {
+          data.enrollmentId = studentData._id;
+          data.status = studentData.status;
+        }
+
+        if (studentData?.finalGrade) {
+          data.finalGrade = studentData.finalGrade;
+        }
+        return {
+          ...subject.subjectId,
+          semesterNumber: subject.semesterNumber,
+          studentData: data,
+        };
+      }),
     };
   }
 
@@ -150,9 +199,9 @@ export class CurriculumService {
       throw new BadRequestException('Combo ID is not valid');
 
     if (
-      updateCurriculumDto.subjectIds &&
-      updateCurriculumDto.subjectIds.length &&
-      !updateCurriculumDto.subjectIds.some(isValidObjectId)
+      updateCurriculumDto.subjects &&
+      updateCurriculumDto.subjects.length &&
+      !updateCurriculumDto.subjects.some((s) => isValidObjectId(s.subjectId))
     )
       throw new BadRequestException('One or more subject IDs are not valid');
 
@@ -175,37 +224,51 @@ export class CurriculumService {
 
     if (!curriculum) throw new BadRequestException('Curriculum not found');
 
-    if (updateCurriculumDto.subjectIds) {
+    if (updateCurriculumDto.subjects) {
       const existingSubjects = await this.curriculumCourseModel
         .find({
           curriculumId: curriculum._id,
         })
-        .select('subjectId');
+        .select('subjectId semesterNumber');
 
-      const existingSubjectIds = existingSubjects.map((subject) =>
-        subject.subjectId.toString(),
-      );
+      const existingSubjectIds = existingSubjects.map((subject) => ({
+        subjectId: subject.subjectId.toString(),
+        semesterNumber: subject.semesterNumber,
+      }));
 
-      const newSubjectIds = updateCurriculumDto.subjectIds;
+      const newSubjectIds = updateCurriculumDto.subjects;
 
       const toAdd = newSubjectIds.filter(
-        (subjectId) => !existingSubjectIds.includes(subjectId),
+        (ns) =>
+          !existingSubjectIds.some(
+            (es) =>
+              es.subjectId === ns.subjectId &&
+              es.semesterNumber === ns.semesterNumber,
+          ),
       );
       const toRemove = existingSubjectIds.filter(
-        (subjectId) => !newSubjectIds.includes(subjectId),
+        (es) =>
+          !newSubjectIds.some(
+            (ns) =>
+              ns.subjectId === es.subjectId &&
+              ns.semesterNumber === es.semesterNumber,
+          ),
       );
 
       if (toRemove.length) {
         await this.curriculumCourseModel.deleteMany({
           curriculumId: curriculum._id,
-          subjectId: { $in: toRemove.map((id) => new Types.ObjectId(id)) },
+          subjectId: {
+            $in: toRemove.map((s) => new Types.ObjectId(s.subjectId)),
+          },
         });
       }
 
       if (toAdd.length) {
-        const subjectsToAdd = toAdd.map((subjectId) => ({
+        const subjectsToAdd = toAdd.map((s) => ({
           curriculumId: curriculum._id,
-          subjectId: new Types.ObjectId(subjectId),
+          subjectId: new Types.ObjectId(s.subjectId),
+          semesterNumber: s.semesterNumber,
         }));
         await this.curriculumCourseModel.insertMany(subjectsToAdd);
       }

@@ -1,19 +1,52 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsIn, IsOptional, IsString, Matches } from 'class-validator';
+import { IsIn, IsOptional, IsString } from 'class-validator';
+import { Types } from 'mongoose';
 
 export class UpdateStudentDto {
+  //   @IsString()
+  //   @IsOptional()
+  //   @ApiProperty({
+  //     required: false,
+  //     type: String,
+  //     pattern: '^[a-zA-Z0-9]{8}$',
+  //     description: 'Student code must be exactly 8 alphanumeric characters',
+  //   })
+  //   @Matches(/^[a-zA-Z0-9]{8}$/, {
+  //     message: 'Student code must be exactly 8 alphanumeric characters',
+  //   })
+  //   studentCode?: string;
+
   @IsString()
   @IsOptional()
   @ApiProperty({
-    required: true,
-    type: String,
-    pattern: '^[a-zA-Z0-9]{8}$',
-    description: 'Student code must be exactly 8 alphanumeric characters',
+    required: false,
+    description: 'ID of the major the student belongs to',
   })
-  @Matches(/^[a-zA-Z0-9]{8}$/, {
-    message: 'Student code must be exactly 8 alphanumeric characters',
+  majorId?: string | Types.ObjectId;
+
+  @IsString()
+  @IsOptional()
+  @ApiProperty({
+    required: false,
+    description: 'ID of the combo the student belongs to',
   })
-  studentCode?: string;
+  comboId?: string | Types.ObjectId;
+
+  @IsString()
+  @IsOptional()
+  @ApiProperty({
+    required: false,
+    description: 'ID of the curriculum the student belongs to',
+  })
+  curriculumId?: string | Types.ObjectId;
+
+  @IsOptional()
+  @ApiProperty({
+    required: false,
+    type: Number,
+    description: 'Number of semesters the student has learned',
+  })
+  learnedSemester?: number;
 
   @IsString()
   @IsOptional()
