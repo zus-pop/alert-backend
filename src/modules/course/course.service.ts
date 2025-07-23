@@ -118,7 +118,10 @@ export class CourseService {
     try {
       const course = await this.courseModel.findByIdAndUpdate(
         id,
-        updateCourseDto,
+        {
+          ...updateCourseDto,
+          semesterId: new Types.ObjectId(updateCourseDto.semesterId),
+        },
         { new: true },
       );
       await this.clearCache();
